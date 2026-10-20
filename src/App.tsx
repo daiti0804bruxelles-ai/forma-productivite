@@ -25,12 +25,12 @@ function isAppData(value:unknown):value is AppData{
  if(!value||typeof value!=='object')return false
  const d=value as Partial<AppData>
  const validText=(s:unknown)=>typeof s==='string'&&s.length<=200
- const validDate=(s:unknown)=>typeof s==='string'&&/^\\d{4}-\\d{2}-\\d{2}$/.test(s)
+ const validDate=(s:unknown)=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)
  if(!Array.isArray(d.habits)||!Array.isArray(d.tasks)||!Array.isArray(d.events)||!d.completedHabits||typeof d.completedHabits!=='object'||Array.isArray(d.completedHabits))return false
  if(d.habits.length>10000||d.tasks.length>10000||d.events.length>10000)return false
  if(!d.habits.every(h=>h&&validText(h.id)&&validText(h.title)&&validText(h.category)&&['Matin','Après-midi','Soir'].includes(h.period)))return false
  if(!d.tasks.every(t=>t&&validText(t.id)&&validText(t.title)&&validText(t.category)&&validDate(t.date)&&['Facile','Moyen','Difficile'].includes(t.priority)&&typeof t.done==='boolean'))return false
- if(!d.events.every(e=>e&&validText(e.id)&&validText(e.title)&&validText(e.category)&&validDate(e.date)&&typeof e.time==='string'&&/^\\d{2}:\\d{2}$/.test(e.time)))return false
+ if(!d.events.every(e=>e&&validText(e.id)&&validText(e.title)&&validText(e.category)&&validDate(e.date)&&typeof e.time==='string'&&/^\d{2}:\d{2}$/.test(e.time)))return false
  return Object.entries(d.completedHabits).every(([day,ids])=>validDate(day)&&Array.isArray(ids)&&ids.every(validText))
 }
 function loadData():AppData{try{const saved=localStorage.getItem('forma-v1-data');if(saved){const value=JSON.parse(saved);if(Array.isArray(value.habits)&&Array.isArray(value.tasks)&&Array.isArray(value.events)&&value.completedHabits)return value}}catch{}return demoData()}
