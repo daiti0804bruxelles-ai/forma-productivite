@@ -1,0 +1,95 @@
+/* Forma V1.1 — iPhone-first polish. Applied after styles.css.
+   Purely visual: no changes to stored habits, tasks or events. */
+@media (max-width: 760px) {
+  .topbar {
+    height: 54px !important;
+    padding: 0 16px !important;
+  }
+  .breadcrumbs { color: #b5bfd2 !important; font-size: 12px; gap: 8px; }
+  .breadcrumbs strong { color: #e6e9f3 !important; }
+  .top-avatar { width: 30px; height: 30px; }
+  .content {
+    padding: 16px 14px calc(90px + env(safe-area-inset-bottom)) !important;
+  }
+  .page-intro {
+    gap: 12px !important;
+    margin-bottom: 16px !important;
+  }
+  .eyebrow { margin-bottom: 9px; font-size: 9px; letter-spacing: 1.5px; }
+  .page-intro h1 {
+    font-size: clamp(23px, 6.2vw, 29px) !important;
+    line-height: 1.18;
+    letter-spacing: -1.1px;
+  }
+  .wave { font-size: .8em; }
+  .page-intro p { margin-top: 7px; color: #b5bfd2 !important; font-size: 12px; line-height: 1.5; }
+  .page-intro .primary-btn {
+    min-height: 42px;
+    padding: 10px 15px;
+    background: #322746;
+    border-color: #44345f;
+    font-size: 12px;
+  }
+  .stat-grid { gap: 9px !important; margin-bottom: 12px; }
+  .stat-card {
+    min-height: 124px !important;
+    padding: 14px !important;
+    border-radius: 15px !important;
+  }
+  .stat-card:nth-child(3) {
+    min-height: 85px !important;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    column-gap: 10px;
+  }
+  .stat-card:nth-child(3) .stat-top { grid-column: 1 / -1; }
+  .stat-card:nth-child(3) .stat-number { margin: 5px 0 0; }
+  .stat-card:nth-child(3) .stat-hint { margin: 5px 0 0; font-size: 10px; }
+  .stat-top { font-size: 11px; color: #c4cbda !important; }
+  .stat-symbol { width: 29px; height: 29px; border-radius: 9px; }
+  .stat-symbol svg { width: 17px; height: 17px; }
+  .stat-number { margin: 10px 0 9px; font-size: 26px; }
+  .stat-number span { font-size: 12px; color: #b5bfd2 !important; }
+  .stat-card small { margin-top: 7px; font-size: 10px; color: #b5bfd2 !important; line-height: 1.35; }
+  .meter { height: 5px; }
+  .dashboard-grid { gap: 12px !important; }
+  .panel { padding: 16px !important; border-radius: 16px !important; }
+  .panel-heading { margin-bottom: 12px; }
+  .panel-heading h2 { font-size: 15px; }
+  .panel-heading p { color: #b2bdd0 !important; font-size: 11px; }
+  .text-action, .bottom-link { color: #c6a8ff !important; }
+  .habit-list, .task-list { min-height: 0; }
+  .habit-row, .task-row { min-height: 55px !important; gap: 10px; }
+  .item-copy strong { font-size: 12px; }
+  .item-copy small { color: #adb9cd !important; font-size: 10px; }
+  .category-icon { width: 32px; min-width: 32px; height: 32px; }
+  .check-btn { width: 30px !important; height: 30px !important; min-width: 30px !important; }
+  .bottom-link { padding-top: 12px; min-height: 44px; }
+  .agenda-panel { margin-top: 12px; }
+  .agenda-item { min-width: 0; }
+  .bottom-nav {
+    padding: 6px 9px calc(5px + env(safe-area-inset-bottom));
+    background: #111521;
+  }
+  .bottom-nav button {
+    min-width: 0;
+    flex: 1;
+    gap: 3px;
+    padding: 7px 3px;
+    font-size: 10px;
+    border-radius: 11px;
+    min-height: 51px;
+  }
+  .bottom-nav button svg { width: 20px; height: 20px; }
+  .bottom-nav button.selected { background: #302642; color: #d6bdff; }
+  .calendar-day { min-height: 43px; }
+  .modal-form label { color: #d9e0ef !important; }
+}
+@media (max-width: 380px) {
+  .stat-card { padding: 11px !important; }
+  .stat-top { font-size: 10px; }
+  .stat-symbol { width: 26px; height: 26px; }
+  .stat-number { font-size: 24px; }
+  .stat-card:nth-child(3) { grid-template-columns: 1fr; }
+}
