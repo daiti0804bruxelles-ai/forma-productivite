@@ -104,3 +104,26 @@
 .delete-cancel { background: #252538; border: 1px solid #414158; color: #eae5f5; }
 .delete-danger { background: #773448; border: 1px solid #a64c64; color: #fff; }
 .delete-confirm-actions button:focus-visible { outline: 2px solid #c7a9ff; outline-offset: 3px; }
+
+/* Forma V1.2 — sauvegarde locale et restauration */
+.backup-avatar{border:0;cursor:pointer;font:inherit}
+.backup-avatar:focus-visible,.backup-sidebar-btn:focus-visible,.backup-action:focus-within,.backup-action:focus-visible{outline:2px solid #c6a8ff;outline-offset:3px}
+.backup-sidebar-btn{display:flex;align-items:center;gap:10px;width:100%;padding:12px;margin-bottom:12px;border:1px solid #3a3550;border-radius:12px;background:#272239;color:#d8c6ff;font-size:12px;font-weight:750;cursor:pointer;text-align:left}
+.backup-panel{display:grid;gap:12px}
+.backup-lead{margin:0 0 4px;color:#b6bfd2;font-size:13px;line-height:1.6}
+.backup-stat{display:flex;align-items:center;gap:12px;border:1px solid #32374b;border-radius:12px;background:#1a2030;padding:14px;color:#c7afff}
+.backup-stat span,.backup-action span{display:grid;gap:5px;min-width:0}
+.backup-stat strong,.backup-action strong{color:#f3f0fb;font-size:13px}
+.backup-stat small,.backup-action small{color:#aeb9cd;font-size:11px;line-height:1.4}
+.backup-action{display:flex;align-items:center;gap:13px;width:100%;border:1px solid #45405b;border-radius:13px;background:#2b2540;color:#cbb0ff;padding:15px;text-align:left;cursor:pointer;font:inherit}
+.backup-action:hover{background:#342b4d}
+.backup-import{position:relative;background:#1e2432;border-color:#394054;color:#c6d0e6}
+.backup-import input{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden}
+.backup-error{margin:0;color:#ffb1bc;font-size:12px;line-height:1.5}
+.backup-preview{padding:15px;border:1px solid #5b4a7e;border-radius:12px;background:#211d30}
+.backup-preview>strong{font-size:13px;color:#e8dcff}
+.backup-preview p{margin:8px 0;color:#b9c0d1;font-size:12px;line-height:1.5}
+.backup-actions{display:grid;grid-template-columns:1fr 1.4fr;gap:9px;margin-top:16px}
+.backup-actions button{min-height:44px;border-radius:10px;font:inherit;font-size:12px;font-weight:750;cursor:pointer}
+.backup-confirm{border:1px solid #a18adb;background:#6d54a8;color:#fff}
+.backup-footnote{font-size:11px;line-height:1.5;color:#98a4b9;margin:2px 0 0}
