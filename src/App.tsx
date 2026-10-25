@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Clock3, Home, LayoutGrid, Menu, MoreHorizontal, Plus, Repeat2, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, BriefcaseBusiness, Dumbbell, BookOpen, ListTodo } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
@@ -171,7 +171,8 @@ useEffect(() => {
 
   return () => listener.subscription.unsubscribe()
 }, [])
- const [data,setData]=useState<AppData>(loadData)
+const [data, setData] = useState<AppData>(demoData)
+const [dataLoading, setDataLoading] = useState(true)
  const [page,setPage]=useState<Page>('dashboard')
  const [mobileOpen,setMobileOpen]=useState(false)
  const [modal,setModal]=useState<'task'|'habit'|'event'|null>(null)
@@ -189,7 +190,69 @@ useEffect(() => {
  const [formPriority,setFormPriority]=useState<Task['priority']>('Moyen')
  const [formDate,setFormDate]=useState(todayKey())
  const [formTime,setFormTime]=useState('09:00')
- useEffect(()=>localStorage.setItem('forma-v1-data',JSON.stringify(data)),[data])
+ 
+const loadedUserId = useRef<string | null>(null)
+
+useEffect(() => {
+  const userId = session?.user?.id
+
+  if (!userId) {
+    loadedUserId.current = null
+    setDataLoading(true)
+    return
+  }
+
+  let cancelled = false
+  loadedUserId.current = null
+  setDataLoading(true)
+
+  async function loadUserData() {
+    const { data: saved, error } = await supabase
+      .from('user_data')
+      .select('data')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    if (cancelled) return
+
+    if (error) {
+      console.error('Erreur de chargement Supabase :', error)
+      return
+    }
+
+    setData(saved?.data ? (saved.data as AppData) : demoData)
+    loadedUserId.current = userId
+    setDataLoading(false)
+  }
+
+  void loadUserData()
+
+  return () => {
+    cancelled = true
+  }
+}, [session?.user?.id])
+
+useEffect(() => {
+  const userId = session?.user?.id
+  if (dataLoading || !userId || loadedUserId.current !== userId) return
+
+  const timer = window.setTimeout(async () => {
+    const { error } = await supabase
+      .from('user_data')
+      .upsert({
+        user_id: userId,
+        data,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' })
+
+    if (error) {
+      console.error('Erreur de sauvegarde Supabase :', error)
+    }
+  }, 1000)
+
+  return () => window.clearTimeout(timer)
+}, [data, dataLoading, session?.user?.id])
+D
  const completed=data.completedHabits[todayKey()]||[]
  const habitsDone=data.habits.filter(h=>completed.includes(h.id)).length
  const todaysTasks=data.tasks.filter(t=>t.date===todayKey())
