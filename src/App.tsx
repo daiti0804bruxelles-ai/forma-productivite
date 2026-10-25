@@ -220,7 +220,7 @@ useEffect(() => {
     }
 
     setData(saved?.data ? (saved.data as AppData) : demoData)
-    loadedUserId.current = userId
+    loadedUserId.current = userId ?? null
     setDataLoading(false)
   }
 
@@ -251,7 +251,7 @@ useEffect(() => {
 
   return () => window.clearTimeout(timer)
 }, [data, dataLoading, session?.user?.id])
-D
+
  const completed=data.completedHabits[todayKey()]||[]
  const habitsDone=data.habits.filter(h=>completed.includes(h.id)).length
  const todaysTasks=data.tasks.filter(t=>t.date===todayKey())
