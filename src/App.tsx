@@ -34,7 +34,6 @@ function isAppData(value:unknown):value is AppData{
  if(!d.events.every(e=>e&&validText(e.id)&&validText(e.title)&&validText(e.category)&&validDate(e.date)&&typeof e.time==='string'&&/^\d{2}:\d{2}$/.test(e.time)))return false
  return Object.entries(d.completedHabits).every(([day,ids])=>validDate(day)&&Array.isArray(ids)&&ids.every(validText))
 }
-function loadData():AppData{try{const saved=localStorage.getItem('forma-v1-data');if(saved){const value=JSON.parse(saved);if(Array.isArray(value.habits)&&Array.isArray(value.tasks)&&Array.isArray(value.events)&&value.completedHabits)return value}}catch{}return demoData()}
 const nav:{id:Page;label:string;icon:LucideIcon}[]=[{id:'dashboard',label:'Tableau de bord',icon:Home},{id:'habits',label:'Mes habitudes',icon:Repeat2},{id:'tasks',label:'Mes tâches',icon:ListTodo},{id:'calendar',label:'Calendrier',icon:CalendarDays}]
 const categoryIcon:Record<string,LucideIcon>={Personnel:Sparkles,Travail:BriefcaseBusiness,Sport:Dumbbell,Apprentissage:BookOpen}
 const categoryClass:Record<string,string>={Personnel:'lavender',Travail:'blue',Sport:'peach',Apprentissage:'mint'}
