@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Clock3, Home, LayoutGrid, Menu, MoreHorizontal, Plus, Repeat2, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, BriefcaseBusiness, Dumbbell, BookOpen, ListTodo } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
-
+import { supabase } from './lib/supabase'
+import type { Session } from '@supabase/supabase-js'
 type Page = 'dashboard' | 'habits' | 'tasks' | 'calendar'
 type Period = 'Matin' | 'Après-midi' | 'Soir'
 type Habit = { id:string; title:string; period:Period; category:string }
@@ -40,8 +41,136 @@ const categoryClass:Record<string,string>={Personnel:'lavender',Travail:'blue',S
 const periods:{name:Period;icon:LucideIcon;time:string}[]=[{name:'Matin',icon:Sunrise,time:'06:00 — 12:00'},{name:'Après-midi',icon:Sun,time:'12:00 — 18:00'},{name:'Soir',icon:Moon,time:'18:00 — 00:00'}]
 function IconBadge({category}:{category:string}){const Icon=categoryIcon[category]||Sparkles;return <span className={`category-icon ${categoryClass[category]||'lavender'}`}><Icon size={17}/></span>}
 function Empty({message}:{message:string}){return <div className="empty">{message}</div>}
+function AuthScreen() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [isSignup, setIsSignup] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    if (loading) return
+
+    setLoading(true)
+    setMessage('')
+
+    try {
+      if (isSignup) {
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password
+        })
+
+        if (error) throw error
+
+        setMessage(
+          data.session
+            ? 'Compte créé avec succès !'
+            : 'Compte créé ! Vérifie ton email pour confirmer ton inscription.'
+        )
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password
+        })
+
+        if (error) throw error
+      }
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : 'Une erreur est survenue.'
+      )
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px'
+    }}>
+      <form
+        onSubmit={handleSubmit}
+        style={{
+          width: '100%',
+          maxWidth: '380px',
+          display: 'grid',
+          gap: '16px'
+        }}
+      >
+        <h1>Forma</h1>
+        <h2>{isSignup ? 'Créer un compte' : 'Connexion'}</h2>
+
+        <input
+          type="email"
+          placeholder="Adresse email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          autoComplete="email"
+          required
+        />
+
+        <input
+          type="password"
+          placeholder="Mot de passe"
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          autoComplete={isSignup ? 'new-password' : 'current-password'}
+          minLength={6}
+          required
+        />
+
+        <button type="submit" disabled={loading}>
+          {loading
+            ? 'Chargement...'
+            : isSignup ? "S'inscrire" : 'Se connecter'}
+        </button>
+
+        {message && <p role="status">{message}</p>}
+
+        <button
+          type="button"
+          onClick={() => {
+            setIsSignup(!isSignup)
+            setMessage('')
+          }}
+        >
+          {isSignup
+            ? 'Déjà un compte ? Se connecter'
+            : "Pas de compte ? S'inscrire"}
+        </button>
+      </form>
+    </div>
+  )
+}
+
 function Modal({title,onClose,children}:{title:string;onClose:()=>void;children:ReactNode}){return <div className="modal-backdrop" onMouseDown={onClose}><div className="modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={e=>e.stopPropagation()}><div className="modal-head"><h2>{title}</h2><button className="icon-button" aria-label="Fermer" onClick={onClose}><X size={19}/></button></div>{children}</div></div>}
 function App(){
+ const [session, setSession] = useState<Session | null>(null)
+const [authLoading, setAuthLoading] = useState(true)
+
+useEffect(() => {
+  supabase.auth.getSession().then(({ data }) => {
+    setSession(data.session)
+    setAuthLoading(false)
+  })
+
+  const { data: listener } = supabase.auth.onAuthStateChange(
+    (_event, newSession) => {
+      setSession(newSession)
+      setAuthLoading(false)
+    }
+  )
+
+  return () => listener.subscription.unsubscribe()
+}, [])
  const [data,setData]=useState<AppData>(loadData)
  const [page,setPage]=useState<Page>('dashboard')
  const [mobileOpen,setMobileOpen]=useState(false)
@@ -109,6 +238,12 @@ function App(){
  const monthDays=useMemo(()=>{const first=new Date(visibleMonth.getFullYear(),visibleMonth.getMonth(),1);const offset=(first.getDay()+6)%7;return Array.from({length:42},(_,i)=>new Date(first.getFullYear(),first.getMonth(),1-offset+i))},[visibleMonth])
  const selectedEvents=data.events.filter(e=>e.date===selectedDate).sort((a,b)=>a.time.localeCompare(b.time))
  const selectedTasks=data.tasks.filter(t=>t.date===selectedDate)
+ if (authLoading) {
+  return <div>Chargement de Forma...</div>
+}
+ if (!session) {
+  return <AuthScreen />
+}
  return <div className="app-shell">
   {mobileOpen&&<button className="mobile-overlay" onClick={()=>setMobileOpen(false)} aria-label="Fermer la navigation"/>}
   <aside className={`sidebar ${mobileOpen?'sidebar-open':''}`}><div className="brand"><div className="brand-mark"><LayoutGrid size={20} strokeWidth={2.5}/></div><span>forma<span className="brand-dot">.</span></span></div><p className="sidebar-label">ESPACE PERSONNEL</p><nav className="nav">{nav.map(item=><button key={item.id} className={`nav-item ${page===item.id?'active':''}`} onClick={()=>go(item.id)}><item.icon size={19} strokeWidth={page===item.id?2.3:1.9}/><span>{item.label}</span>{page===item.id&&<span className="active-pin"/>}</button>)}</nav><div className="sidebar-bottom"><button className="backup-sidebar-btn" onClick={openBackup}><ShieldCheck size={18}/> Sauvegarder mes données</button><div className="tip-card"><div className="tip-icon"><Sparkles size={17}/></div><strong>Un peu chaque jour.</strong><p>La régularité transforme les petits efforts en grandes avancées.</p></div><div className="profile"><div className="avatar">M</div><div><strong>Mon espace</strong><small>Version personnelle</small></div><MoreHorizontal size={19}/></div></div></aside>
