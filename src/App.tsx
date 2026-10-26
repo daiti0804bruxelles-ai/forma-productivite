@@ -11,6 +11,11 @@ type Task = { id:string; title:string; category:string; priority:'Facile'|'Moyen
 type Event = { id:string; title:string; date:string; time:string; category:string }
 type AppData = { habits:Habit[]; tasks:Task[]; events:Event[]; completedHabits:Record<string,string[]> }
 const todayKey = () => dateKey(new Date())
+function rollOverTasks(value:AppData,today=todayKey()):AppData {
+ const tasks=value.tasks.map(task=>!task.done && task.date<today ? {...task,date:today} : task)
+ return tasks.some((task,i)=>task!==value.tasks[i])?{...value,tasks}:value
+}
+
 function dateKey(d:Date){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function makeDate(s:string){const [y,m,d]=s.split('-').map(Number);return new Date(y,m-1,d)}
 function addDays(d:Date,n:number){const x=new Date(d);x.setDate(x.getDate()+n);return x}
@@ -172,6 +177,15 @@ useEffect(() => {
 }, [])
 const [data, setData] = useState<AppData>(demoData)
 const [dataLoading, setDataLoading] = useState(true)
+useEffect(()=>{
+ if(dataLoading)return
+ const refresh=()=>setData(prev=>rollOverTasks(prev))
+ refresh()
+ const interval=window.setInterval(refresh,60000)
+ window.addEventListener('focus',refresh)
+ return ()=>{window.clearInterval(interval);window.removeEventListener('focus',refresh)}
+},[dataLoading])
+
  const [page,setPage]=useState<Page>('dashboard')
  const [mobileOpen,setMobileOpen]=useState(false)
  const [modal,setModal]=useState<'task'|'habit'|'event'|null>(null)
@@ -219,7 +233,7 @@ useEffect(() => {
       return
     }
 
-    setData(saved?.data ? (saved.data as AppData) : demoData)
+    setData(rollOverTasks(saved?.data ? (saved.data as AppData) : demoData()))
     loadedUserId.current = userId ?? null
     setDataLoading(false)
   }
