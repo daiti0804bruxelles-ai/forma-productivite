@@ -282,12 +282,15 @@ useEffect(() => {
    const current=prev.habits.find(h=>h.id===habitId)
    if(!current)return prev
    const siblings=prev.habits.filter(h=>h.period===current.period)
+   if(siblings.length<2)return prev
    const pos=siblings.findIndex(h=>h.id===habitId)
-   const other=siblings[pos+direction]
-   if(!other)return prev
-   const next=[...prev.habits],a=next.findIndex(h=>h.id===habitId),b=next.findIndex(h=>h.id===other.id)
-   ;[next[a],next[b]]=[next[b],next[a]]
-   return {...prev,habits:next}
+   if(pos<0)return prev
+   const target=(pos+direction+siblings.length)%siblings.length
+   const reordered=[...siblings]
+   const [moved]=reordered.splice(pos,1)
+   reordered.splice(target,0,moved)
+   let index=0
+   return {...prev,habits:prev.habits.map(h=>h.period===current.period?reordered[index++]:h)}
   })
  }
  const toggleTask=(taskId:string)=>setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,done:!t.done}:t)}))
