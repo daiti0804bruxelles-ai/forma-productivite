@@ -350,7 +350,6 @@ useEffect(() => {
  const displayedTasks=useMemo(()=>data.tasks.filter(t=>taskFilter==='Toutes'||(taskFilter==='Terminées'?t.done:!t.done)).sort((a,b)=>a.date.localeCompare(b.date)),[data.tasks,taskFilter])
  const monthDays=useMemo(()=>{const first=new Date(visibleMonth.getFullYear(),visibleMonth.getMonth(),1);const offset=(first.getDay()+6)%7;return Array.from({length:42},(_,i)=>new Date(first.getFullYear(),first.getMonth(),1-offset+i))},[visibleMonth])
  const selectedEvents=data.events.filter(e=>e.date===selectedDate).sort((a,b)=>a.time.localeCompare(b.time))
- const selectedTasks=data.tasks.filter(t=>t.date===selectedDate)
  if (authLoading) {
   return <div>Chargement de Forma...</div>
 }
