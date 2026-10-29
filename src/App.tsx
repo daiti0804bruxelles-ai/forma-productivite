@@ -5,6 +5,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
 import GoalsPage from './GoalsPage'
 import type { Goal } from './GoalsPage'
+import { isValidGoal } from './goalModel'
 import type { Session } from '@supabase/supabase-js'
 type Page = 'dashboard' | 'habits' | 'tasks' | 'calendar' | 'goals'
 type Period = 'Matin' | 'Après-midi' | 'Soir'
@@ -43,7 +44,7 @@ function isAppData(value:unknown):value is AppData{
  const validDate=(s:unknown)=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)
  if(!Array.isArray(d.habits)||!Array.isArray(d.tasks)||!Array.isArray(d.events)||!d.completedHabits||typeof d.completedHabits!=='object'||Array.isArray(d.completedHabits))return false
  if(d.habits.length>10000||d.tasks.length>10000||d.events.length>10000||(d.goals!==undefined&&(!Array.isArray(d.goals)||d.goals.length>10000)))return false
- if(d.goals!==undefined&&!d.goals.every(g=>g&&validText(g.id)&&validText(g.title)&&validText(g.category)&&validText(g.unit)&&typeof g.target==='number'&&Number.isFinite(g.target)&&g.target>0&&typeof g.current==='number'&&Number.isFinite(g.current)&&g.current>=0&&g.current<=g.target&&(g.deadline===undefined||validDate(g.deadline))&&(g.history===undefined||(Array.isArray(g.history)&&g.history.length<=100000&&g.history.every(h=>h&&typeof h.at==='string'&&h.at.length<=40&&typeof h.from==='number'&&Number.isFinite(h.from)&&typeof h.to==='number'&&Number.isFinite(h.to))))))return false
+ if(d.goals!==undefined&&!d.goals.every(isValidGoal))return false
  if(!d.habits.every(h=>h&&validText(h.id)&&validText(h.title)&&validText(h.category)&&['Matin','Après-midi','Soir'].includes(h.period)))return false
  if(!d.tasks.every(t=>t&&validText(t.id)&&validText(t.title)&&validText(t.category)&&validDate(t.date)&&typeof t.done==='boolean'&&(t.recurring===undefined||typeof t.recurring==='boolean')))return false
  if(!d.events.every(e=>e&&validText(e.id)&&validText(e.title)&&validText(e.category)&&validDate(e.date)&&typeof e.time==='string'&&/^\d{2}:\d{2}$/.test(e.time)&&(e.endTime===undefined||(typeof e.endTime==='string'&&/^\d{2}:\d{2}$/.test(e.endTime)&&e.endTime>e.time))&&(e.repeatDays===undefined||(Array.isArray(e.repeatDays)&&e.repeatDays.length>0&&e.repeatDays.length<=7&&e.repeatDays.every(day=>Number.isInteger(day)&&day>=0&&day<=6)&&new Set(e.repeatDays).size===e.repeatDays.length))))return false
