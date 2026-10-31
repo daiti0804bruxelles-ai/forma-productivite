@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { CSSProperties, FormEvent } from 'react'
 import { Check, Copy, Plus, RefreshCw, Trash2, Users } from 'lucide-react'
 import { supabase } from './lib/supabase'
 
@@ -9,9 +9,9 @@ type SharedGoal={id:string;space_id:string;title:string;unit:string;target:numbe
 type Entry={id:string;goal_id:string;actor_id:string;amount:number;note:string|null;created_at:string}
 type Member={space_id:string;user_id:string}
 const fmt=(n:number)=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}).format(n)
-const field:React.CSSProperties={width:'100%',boxSizing:'border-box',padding:'11px 12px',borderRadius:10,border:'1px solid rgba(120,120,128,.3)',background:'transparent',color:'inherit',fontSize:14}
-const button:React.CSSProperties={padding:'10px 13px',border:'1px solid rgba(120,120,128,.25)',borderRadius:10,background:'transparent',color:'inherit',cursor:'pointer'}
-const panel:React.CSSProperties={border:'1px solid rgba(120,120,128,.22)',borderRadius:16,padding:18,display:'grid',gap:12}
+const field:CSSProperties={width:'100%',boxSizing:'border-box',padding:'11px 12px',borderRadius:10,border:'1px solid rgba(120,120,128,.3)',background:'transparent',color:'inherit',fontSize:14}
+const button:CSSProperties={padding:'10px 13px',border:'1px solid rgba(120,120,128,.25)',borderRadius:10,background:'transparent',color:'inherit',cursor:'pointer'}
+const panel:CSSProperties={border:'1px solid rgba(120,120,128,.22)',borderRadius:16,padding:18,display:'grid',gap:12}
 const message=(e:unknown)=>e instanceof Error?e.message:String(e)
 export default function SharedGoalsPage({userId}:{userId:string}){
  const [spaces,setSpaces]=useState<Space[]>([])
