@@ -12,7 +12,17 @@ const fmt=(n:number)=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:2}).f
 const field:CSSProperties={width:'100%',boxSizing:'border-box',padding:'11px 12px',borderRadius:10,border:'1px solid rgba(120,120,128,.3)',background:'transparent',color:'inherit',fontSize:14}
 const button:CSSProperties={padding:'10px 13px',border:'1px solid rgba(120,120,128,.25)',borderRadius:10,background:'transparent',color:'inherit',cursor:'pointer'}
 const panel:CSSProperties={border:'1px solid rgba(120,120,128,.22)',borderRadius:16,padding:18,display:'grid',gap:12}
-const message=(e:unknown)=>e instanceof Error?e.message:String(e)
+const message=(e:unknown):string=>{
+ if(e instanceof Error)return e.message
+ if(typeof e==='string')return e
+ if(e&&typeof e==='object'){
+  const details=e as {message?:unknown;details?:unknown;hint?:unknown;code?:unknown}
+  const parts=[details.message,details.details,details.hint].filter((part):part is string=>typeof part==='string'&&part.length>0)
+  if(parts.length)return parts.join(' — ')
+  try{return JSON.stringify(e)}catch{return 'Une erreur inconnue est survenue.'}
+ }
+ return String(e)
+}
 export default function SharedGoalsPage({userId}:{userId:string}){
  const [spaces,setSpaces]=useState<Space[]>([])
  const [spaceId,setSpaceId]=useState('')
