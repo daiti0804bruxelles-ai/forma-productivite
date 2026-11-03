@@ -46,12 +46,13 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
         : <div style={{ display: 'grid', gap: 12 }}>
           {recentEvents.map(event => {
             const labels: Record<string, string> = { habit: 'Habitude validée', task: 'Tâche validée', goal: 'Objectif atteint', penalty: 'Pénalité' }
+            const eventDay = event.source === 'penalty' && /^\\d{4}-\\d{2}-\\d{2}$/.test(event.key.slice(-10)) ? event.key.slice(-10) : event.at
             const skillNames = event.skillIds.map(id => SKILL_GROUPS.flatMap(group => group.skills).find(skill => skill.id === id)?.name ?? id).join(' · ')
             return <div key={event.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, paddingBottom: 12, borderBottom: '1px solid rgba(120,120,128,.12)' }}>
               <div style={{ minWidth: 0 }}>
                 <strong style={{ fontSize: 13 }}>{labels[event.source]}</strong>
                 <div style={{ fontSize: 12, opacity: .7, marginTop: 4, overflowWrap: 'anywhere' }}>{skillNames}</div>
-                <time dateTime={event.at} style={{ display: 'block', fontSize: 11, opacity: .55, marginTop: 4 }}>{Number.isNaN(Date.parse(event.at)) ? '' : new Date(event.at).toLocaleDateString('fr-FR')}</time>
+                <time dateTime={eventDay} style={{ display: 'block', fontSize: 11, opacity: .55, marginTop: 4 }}>{Number.isNaN(Date.parse(eventDay)) ? '' : new Date(eventDay.includes('T') ? eventDay : `${eventDay}T12:00:00`).toLocaleDateString('fr-FR')}</time>
               </div>
               <strong style={{ whiteSpace: 'nowrap', fontSize: 13, color: event.amountPerSkill < 0 ? '#dc2626' : '#16a34a' }}>{event.amountPerSkill > 0 ? '+' : ''}{event.amountPerSkill.toLocaleString('fr-FR')} XP / compétence</strong>
             </div>
