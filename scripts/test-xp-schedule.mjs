@@ -26,6 +26,20 @@ assert.equal(recurring.xpLedger?.events.length??0,0,'completed recurring task mu
 assert.equal(recurring.tasks[0].done,false)
 const missed=rollOverTasks(recurring,'2026-11-03')
 assert.equal(missed.xpLedger.events.filter(e=>e.source==='penalty').length,1,'missed recurring day incurs one penalty')
+const historical=rollOverTasks({
+  habits:[],completedHabits:{},lastPenaltyCheckDate:'2026-11-01',
+  tasks:[{id:'r2',date:'2026-11-01',done:false,recurring:true,skillIds,createdOn:'2026-10-30'}],
+  xpLedger:{events:[{key:'task:r2:2026-11-01',source:'task',at:'2026-11-01T19:00:00.000Z',skillIds,amountPerSkill:3}]}
+},'2026-11-02')
+assert.equal(historical.xpLedger.events.length,1,'historical completion must not become a penalty')
+const multiDay=rollOverTasks({
+  habits:[],completedHabits:{},lastPenaltyCheckDate:'2026-11-01',
+  tasks:[{id:'r3',date:'2026-11-01',done:false,recurring:true,skillIds,createdOn:'2026-10-30'}],
+  xpLedger:{events:[{key:'task:r3:2026-11-02',source:'task',at:'2026-11-02T19:00:00.000Z',skillIds,amountPerSkill:3}]}
+},'2026-11-04')
+assert.deepEqual(multiDay.xpLedger.events.filter(e=>e.source==='penalty').map(e=>e.key),
+  ['late-task:r3:2026-11-01','late-task:r3:2026-11-03'],
+  'a completed recurring day must not be penalized even across multiple offline days')
 const untouched=rollOverTasks({habits:[],tasks:[],completedHabits:{}},'2026-11-03')
 assert.equal(untouched.xpLedger,undefined,'no retrospective XP penalty on first launch')
 console.log('Tests de calendrier XP réussis : échéances, journées manquées, récurrence, création, idempotence.')
