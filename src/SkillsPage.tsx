@@ -1,6 +1,8 @@
 import { SKILL_GROUPS } from './skillsCatalog'
 import { domainProgress, skillProgress, type XpLedger } from './xpEngine'
 
+const skillNameById: Record<string, string> = Object.fromEntries(SKILL_GROUPS.flatMap(group => group.skills.map(skill => [skill.id, skill.name])))
+
 const barStyle = { height: 7, background: 'rgba(120,120,128,.18)', borderRadius: 999, overflow: 'hidden' as const }
 function ProgressBar({ current, required }: { current: number; required: number }) {
   return <div role="progressbar" aria-valuenow={current} aria-valuemin={0} aria-valuemax={required}
@@ -47,7 +49,7 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
           {recentEvents.map(event => {
             const labels: Record<string, string> = { habit: 'Habitude validée', task: 'Tâche validée', goal: 'Objectif atteint', penalty: 'Pénalité' }
             const eventDay = event.source === 'penalty' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(event.key.slice(-10)) ? event.key.slice(-10) : event.at
-            const skillNames = event.skillIds.map(id => SKILL_GROUPS.flatMap(group => group.skills).find(skill => skill.id === id)?.name ?? id).join(' · ')
+            const skillNames = event.skillIds.map(id => skillNameById[id] ?? id).join(' · ')
             return <div key={event.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, paddingBottom: 12, borderBottom: '1px solid rgba(120,120,128,.12)' }}>
               <div style={{ minWidth: 0 }}>
                 <strong style={{ fontSize: 13 }}>{labels[event.source]}</strong>
