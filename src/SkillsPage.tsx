@@ -1,4 +1,4 @@
-import { SKILL_GROUPS, SKILL_NAMES } from './skillsCatalog'
+import { SKILL_GROUPS } from './skillsCatalog'
 import { domainProgress, skillProgress, type XpLedger } from './xpEngine'
 
 const barStyle = { height: 7, background: 'rgba(120,120,128,.18)', borderRadius: 999, overflow: 'hidden' as const }
@@ -46,7 +46,7 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
         : <div style={{ display: 'grid', gap: 12 }}>
           {recentEvents.map(event => {
             const labels: Record<string, string> = { habit: 'Habitude validée', task: 'Tâche validée', goal: 'Objectif atteint', penalty: 'Pénalité' }
-            const skillNames = event.skillIds.map(id => SKILL_NAMES[id]).join(' · ')
+            const skillNames = event.skillIds.map(id => SKILL_GROUPS.flatMap(group => group.skills).find(skill => skill.id === id)?.name ?? id).join(' · ')
             return <div key={event.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, paddingBottom: 12, borderBottom: '1px solid rgba(120,120,128,.12)' }}>
               <div style={{ minWidth: 0 }}>
                 <strong style={{ fontSize: 13 }}>{labels[event.source]}</strong>
