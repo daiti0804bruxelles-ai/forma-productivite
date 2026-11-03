@@ -10,25 +10,51 @@ import { isSkillId, type SkillId } from './skillsCatalog'
 import SharedGoalsPage from './SharedGoalsPage'
 import type { Goal } from './GoalsPage'
 import { isValidGoal, progressPercent } from './goalModel'
-import { awardXp, isValidXpLedger, type XpLedger } from './xpEngine'
+import { awardXp, penalizeXp, isValidXpLedger, type XpLedger } from './xpEngine'
 import type { Session } from '@supabase/supabase-js'
 type Page = 'dashboard' | 'habits' | 'tasks' | 'calendar' | 'goals' | 'skills'
 type Period = 'Matin' | 'Après-midi' | 'Soir'
 type Habit = { id:string; title:string; period:Period; category:string; skillIds?:SkillId[] }
 type Task = { id:string; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[] }
 type Event = { id:string; title:string; date:string; time:string; endTime?:string; category:string; repeatDays?:number[] }
-type AppData = { habits:Habit[]; tasks:Task[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; xpLedger?:XpLedger }
+type AppData = { habits:Habit[]; tasks:Task[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; xpLedger?:XpLedger; lastPenaltyCheckDate?:string }
 const todayKey = () => dateKey(new Date())
 const weekdayOptions=[{day:1,label:'Lun'},{day:2,label:'Mar'},{day:3,label:'Mer'},{day:4,label:'Jeu'},{day:5,label:'Ven'},{day:6,label:'Sam'},{day:0,label:'Dim'}]
 function eventOccursOn(event:Event,day:string){return event.date===day||(day>event.date&&Array.isArray(event.repeatDays)&&event.repeatDays.includes(makeDate(day).getDay()))}
 function rollOverTasks(value:AppData,today=todayKey()):AppData {
+ // Démarrage sans pénalité rétroactive sur les anciennes données.
+ const lastCheck=value.lastPenaltyCheckDate
+ let xpLedger=value.xpLedger
+ if(lastCheck && lastCheck<today){
+  let day=addDays(makeDate(lastCheck),1)
+  let processed=0
+  while(dateKey(day)<=today && processed<366){
+   const key=dateKey(day)
+   if(key<today){
+    for(const habit of value.habits){
+     if(!(value.completedHabits[key]||[]).includes(habit.id)){
+      xpLedger=penalizeXp(xpLedger,`missed-habit:${habit.id}:${key}`,habit.skillIds,-5)
+     }
+    }
+   }
+   for(const task of value.tasks){
+    if(task.date>=key || (task.done && !task.recurring))continue
+    // Une tâche récurrente validée à sa date n'est pas pénalisée ce jour-là.
+    if(task.recurring && task.done && task.date===dateKey(addDays(day,-1)))continue
+    if(task.recurring && task.date===dateKey(addDays(day,-1)) && task.done)continue
+    if(task.recurring && task.date>=dateKey(addDays(day,-1)))continue
+    xpLedger=penalizeXp(xpLedger,`late-task:${task.id}:${key}`,task.skillIds,task.recurring?-1.5:-5)
+   }
+   day=addDays(day,1);processed++
+  }
+ }
  const tasks=value.tasks.flatMap(task=>{
   if(task.date>=today)return [task]
   if(task.recurring)return [{...task,date:today,done:false}]
   if(task.done)return []
   return [{...task,date:today}]
  })
- return tasks.length!==value.tasks.length||tasks.some((task,i)=>task!==value.tasks[i])?{...value,tasks}:value
+ return tasks.length!==value.tasks.length||tasks.some((task,i)=>task!==value.tasks[i])||value.lastPenaltyCheckDate!==today||xpLedger!==value.xpLedger?{...value,tasks,xpLedger,lastPenaltyCheckDate:today}:value
 }
 
 function dateKey(d:Date){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
@@ -52,6 +78,7 @@ function isAppData(value:unknown):value is AppData{
  if(d.habits.length>10000||d.tasks.length>10000||d.events.length>10000||(d.goals!==undefined&&(!Array.isArray(d.goals)||d.goals.length>10000)))return false
  if(d.goals!==undefined&&!d.goals.every(isValidGoal))return false
  if(d.xpLedger!==undefined&&!isValidXpLedger(d.xpLedger))return false
+ if(d.lastPenaltyCheckDate!==undefined&&!validDate(d.lastPenaltyCheckDate))return false
  if(!d.habits.every(h=>h&&validText(h.id)&&validText(h.title)&&validText(h.category)&&['Matin','Après-midi','Soir'].includes(h.period)&&validSkills(h.skillIds)))return false
  if(!d.tasks.every(t=>t&&validText(t.id)&&validText(t.title)&&validText(t.category)&&validDate(t.date)&&typeof t.done==='boolean'&&(t.recurring===undefined||typeof t.recurring==='boolean')&&validSkills(t.skillIds)))return false
  if(!d.events.every(e=>e&&validText(e.id)&&validText(e.title)&&validText(e.category)&&validDate(e.date)&&typeof e.time==='string'&&/^\d{2}:\d{2}$/.test(e.time)&&(e.endTime===undefined||(typeof e.endTime==='string'&&/^\d{2}:\d{2}$/.test(e.endTime)&&e.endTime>e.time))&&(e.repeatDays===undefined||(Array.isArray(e.repeatDays)&&e.repeatDays.length>0&&e.repeatDays.length<=7&&e.repeatDays.every(day=>Number.isInteger(day)&&day>=0&&day<=6)&&new Set(e.repeatDays).size===e.repeatDays.length))))return false
