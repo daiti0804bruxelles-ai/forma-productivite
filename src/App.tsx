@@ -415,8 +415,7 @@ useEffect(() => {
    for(const goal of goals){
     const previous=(prev.goals||[]).find(g=>g.id===goal.id)
     if(previous && progressPercent(previous)<100 && progressPercent(goal)===100){
-     // Le palier d'objectif sera configurable dans une étape suivante.
-     xpLedger=awardXp(xpLedger,`goal:${goal.id}`,'goal',goal.skillIds,100)
+     xpLedger=awardXp(xpLedger,`goal:${goal.id}`,'goal',goal.skillIds,goal.difficulty==='exceptional'?750:goal.difficulty==='ambitious'?300:100)
     }
    }
    return {...prev,goals,xpLedger}
