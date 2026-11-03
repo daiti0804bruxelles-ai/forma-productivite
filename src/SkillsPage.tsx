@@ -46,7 +46,7 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
         : <div style={{ display: 'grid', gap: 12 }}>
           {recentEvents.map(event => {
             const labels: Record<string, string> = { habit: 'Habitude validée', task: 'Tâche validée', goal: 'Objectif atteint', penalty: 'Pénalité' }
-            const eventDay = event.source === 'penalty' && /^\\d{4}-\\d{2}-\\d{2}$/.test(event.key.slice(-10)) ? event.key.slice(-10) : event.at
+            const eventDay = event.source === 'penalty' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(event.key.slice(-10)) ? event.key.slice(-10) : event.at
             const skillNames = event.skillIds.map(id => SKILL_GROUPS.flatMap(group => group.skills).find(skill => skill.id === id)?.name ?? id).join(' · ')
             return <div key={event.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, paddingBottom: 12, borderBottom: '1px solid rgba(120,120,128,.12)' }}>
               <div style={{ minWidth: 0 }}>
