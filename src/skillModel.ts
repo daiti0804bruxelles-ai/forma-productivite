@@ -61,6 +61,28 @@ const REWARDS: Record<XpAction, number> = {
 }
 const SKILL_TO_GROUP = Object.fromEntries(SKILL_GROUPS.flatMap(group => group.skills.map(skill => [skill.id, group.id]))) as Record<SkillId, SkillGroupId>
 const ALL_SKILLS = new Set<string>(Object.keys(SKILL_TO_GROUP))
+export function isSkillIds(value: unknown): value is SkillId[] {
+  return Array.isArray(value) && value.length <= ALL_SKILLS.size && value.every(id => typeof id === 'string' && ALL_SKILLS.has(id)) && new Set(value).size === value.length
+}
+export function isXpEvent(value: unknown): value is XpEvent {
+  if (!value || typeof value !== 'object') return false
+  const event = value as XpEvent
+  return typeof event.id === 'string' && event.id.length > 0 && event.id.length <= 300 &&
+    Object.hasOwn(REWARDS, event.action) && ['completed', 'missed', 'reversed'].includes(event.status) &&
+    isSkillIds(event.skillIds) && typeof event.occurredAt === 'string' && event.occurredAt.length <= 40 &&
+    Number.isFinite(Date.parse(event.occurredAt))
+}
+export function isXpLedger(value: unknown): value is XpLedger {
+  if (!value || typeof value !== 'object') return false
+  const ledger = value as XpLedger
+  if (!Array.isArray(ledger.events) || ledger.events.length > 100000 || !ledger.events.every(isXpEvent)) return false
+  if (new Set(ledger.events.map(event => event.id)).size !== ledger.events.length) return false
+  if (ledger.levelFloors === undefined) return true
+  if (!ledger.levelFloors || typeof ledger.levelFloors !== 'object' || Array.isArray(ledger.levelFloors)) return false
+  return Object.entries(ledger.levelFloors).every(([key, level]) =>
+    (ALL_SKILLS.has(key) || SKILL_GROUPS.some(group => group.id === key)) &&
+    Number.isInteger(level) && level >= 1 && level <= 100)
+}
 const AUTOMATIC_SKILL: SkillId = 'consistency'
 export const MAX_LEVEL = 100
 export const CATEGORY_XP_SHARE = 0.2
@@ -135,7 +157,7 @@ export function preserveLevels(ledger: XpLedger): XpLedger {
   return { ...ledger, levelFloors: floors }
 }
 export function upsertXpEvent(ledger: XpLedger, event: XpEvent): XpLedger {
-  if (!event.id || !Number.isFinite(Date.parse(event.occurredAt))) return ledger
+  if (!isXpEvent(event)) return ledger
   const current = ledger.events.find(e => e.id === event.id)
   // Revalidation : mettre à jour le même événement, jamais en ajouter un second.
   if (current && current.action !== event.action) return ledger
