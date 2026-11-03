@@ -202,6 +202,7 @@ useEffect(()=>{
  const [page,setPage]=useState<Page>('dashboard')
  const [goalsTab,setGoalsTab]=useState<'personal'|'shared'>('personal')
  const [mobileOpen,setMobileOpen]=useState(false)
+  const [mobileMoreOpen,setMobileMoreOpen]=useState(false)
  const [modal,setModal]=useState<'task'|'habit'|'event'|null>(null)
  const [editing,setEditing]=useState<string|null>(null)
  const [pendingDelete,setPendingDelete]=useState<{type:'task'|'habit'|'event';id:string}|null>(null)
@@ -291,7 +292,7 @@ useEffect(() => {
  const taskProgress=todaysTasks.length?Math.round(doneTasks/todaysTasks.length*100):0
  const habitProgress=data.habits.length?Math.round(habitsDone/data.habits.length*100):0
  const todayEvents=data.events.filter(e=>e.date===todayKey()).sort((a,b)=>a.time.localeCompare(b.time))
- const go=(p:Page)=>{setPage(p);setMobileOpen(false)}
+ const go=(p:Page)=>{setPage(p);setMobileOpen(false);setMobileMoreOpen(false)}
  const toggleHabit=(habitId:string)=>setData(prev=>{
   const key=todayKey(), now=prev.completedHabits[key]||[]
   const alreadyDone=now.includes(habitId)
@@ -391,7 +392,10 @@ useEffect(() => {
  return <div className="app-shell">
   {mobileOpen&&<button className="mobile-overlay" onClick={()=>setMobileOpen(false)} aria-label="Fermer la navigation"/>}
   <aside className={`sidebar ${mobileOpen?'sidebar-open':''}`}><div className="brand"><div className="brand-mark"><LayoutGrid size={20} strokeWidth={2.5}/></div><span>forma<span className="brand-dot">.</span></span></div><p className="sidebar-label">ESPACE PERSONNEL</p><nav className="nav">{nav.map(item=><button key={item.id} className={`nav-item ${page===item.id?'active':''}`} onClick={()=>go(item.id)}><item.icon size={19} strokeWidth={page===item.id?2.3:1.9}/><span>{item.label}</span>{page===item.id&&<span className="active-pin"/>}</button>)}</nav><div className="sidebar-bottom"><button className="backup-sidebar-btn" onClick={openBackup}><ShieldCheck size={18}/> Sauvegarder mes données</button><div className="tip-card"><div className="tip-icon"><Sparkles size={17}/></div><strong>Un peu chaque jour.</strong><p>La régularité transforme les petits efforts en grandes avancées.</p></div><div className="profile"><div className="avatar">M</div><div><strong>Mon espace</strong><small>Version personnelle</small></div><MoreHorizontal size={19}/></div></div></aside>
-  <nav className="bottom-nav" aria-label="Navigation principale">{nav.map(item=><button key={item.id} className={page===item.id?"selected":""} onClick={()=>go(item.id)} aria-current={page===item.id?"page":undefined}><item.icon size={21}/><span>{item.id==="dashboard"?"Accueil":item.id==="habits"?"Habitudes":item.id==="tasks"?"Tâches":item.id==="goals"?"Objectifs":item.id==="character"?"Perso":item.id==="skills"?"XP":"Agenda"}</span></button>)}</nav>
+  {mobileMoreOpen&&<><button type="button" aria-label="Fermer le menu" onClick={()=>setMobileMoreOpen(false)} style={{position:'fixed',inset:0,zIndex:29,border:0,background:'rgba(0,0,0,.35)'}}/><div role="menu" aria-label="Autres pages" style={{position:'fixed',zIndex:31,bottom:'calc(83px + env(safe-area-inset-bottom))',left:16,right:16,maxWidth:420,margin:'0 auto',padding:12,borderRadius:18,background:'#1b2030',border:'1px solid #394054',boxShadow:'0 16px 50px #0007',display:'grid',gap:5}}>
+     {nav.filter(item=>!['dashboard','habits','tasks','character'].includes(item.id)).map(item=><button role="menuitem" key={item.id} onClick={()=>go(item.id)} style={{display:'flex',alignItems:'center',gap:12,color:'#edf0fa',background:page===item.id?'#302745':'transparent',border:0,padding:'14px 16px',borderRadius:12,textAlign:'left',fontSize:14,fontWeight:700}}><item.icon size={19}/>{item.label}</button>)}
+   </div></>}
+   <nav className="bottom-nav" aria-label="Navigation principale">{nav.filter(item=>['dashboard','habits','tasks','character'].includes(item.id)).map(item=><button key={item.id} className={page===item.id?"selected":""} onClick={()=>go(item.id)} aria-current={page===item.id?"page":undefined}><item.icon size={21}/><span>{item.id==="dashboard"?"Accueil":item.id==="habits"?"Habitudes":item.id==="tasks"?"Tâches":"Perso"}</span></button>)}<button type="button" className={mobileMoreOpen||['goals','skills','calendar'].includes(page)?"selected":""} onClick={()=>setMobileMoreOpen(value=>!value)} aria-expanded={mobileMoreOpen} aria-label="Plus de pages"><Menu size={21}/><span>Plus</span></button></nav>
   <div className="main-wrap"><header className="topbar"><button className="mobile-menu icon-button" aria-label="Ouvrir la navigation" onClick={()=>setMobileOpen(true)}><Menu size={22}/></button><div className="breadcrumbs">Mon espace <ChevronRight size={15}/><strong>{nav.find(n=>n.id===page)?.label}</strong></div><div className="topbar-right"><span className="today-pill"><span className="green-dot"/>{frDate(new Date(),{day:'numeric',month:'long',year:'numeric'})}</span><button type="button" className="top-avatar backup-avatar" onClick={openBackup} aria-label="Sauvegarder ou restaurer mes données" title="Sauvegarde">M</button></div></header>
   <main className="content">
   {page==='skills'&&<SkillsPage ledger={data.xpLedger}/>}
