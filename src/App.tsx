@@ -26,11 +26,11 @@ function rollOverTasks(value:AppData,today=todayKey()):AppData {
  const lastCheck=value.lastPenaltyCheckDate
  let xpLedger=value.xpLedger
  if(lastCheck && lastCheck<today){
-  let day=addDays(makeDate(lastCheck),1)
+  let day=makeDate(lastCheck)
   let processed=0
-  while(dateKey(day)<=today && processed<366){
+  while(dateKey(day)<today && processed<366){
    const key=dateKey(day)
-   if(key<today){
+   {
     for(const habit of value.habits){
      if(!(value.completedHabits[key]||[]).includes(habit.id)){
       xpLedger=penalizeXp(xpLedger,`missed-habit:${habit.id}:${key}`,habit.skillIds,-5)
@@ -38,11 +38,8 @@ function rollOverTasks(value:AppData,today=todayKey()):AppData {
     }
    }
    for(const task of value.tasks){
-    if(task.date>=key || (task.done && !task.recurring))continue
+    if(task.date>key || (task.done && (!task.recurring || task.date===key)))continue
     // Une tâche récurrente validée à sa date n'est pas pénalisée ce jour-là.
-    if(task.recurring && task.done && task.date===dateKey(addDays(day,-1)))continue
-    if(task.recurring && task.date===dateKey(addDays(day,-1)) && task.done)continue
-    if(task.recurring && task.date>=dateKey(addDays(day,-1)))continue
     xpLedger=penalizeXp(xpLedger,`late-task:${task.id}:${key}`,task.skillIds,task.recurring?-1.5:-5)
    }
    day=addDays(day,1);processed++
