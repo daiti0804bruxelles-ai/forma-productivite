@@ -1,4 +1,4 @@
-import { SKILL_GROUPS } from './skillsCatalog'
+import { SKILL_GROUPS, SKILL_NAMES } from './skillsCatalog'
 import { domainProgress, skillProgress, type XpLedger } from './xpEngine'
 
 const barStyle = { height: 7, background: 'rgba(120,120,128,.18)', borderRadius: 999, overflow: 'hidden' as const }
@@ -8,9 +8,10 @@ function ProgressBar({ current, required }: { current: number; required: number 
 }
 
 export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
+  const recentEvents = [...(ledger?.events ?? [])].reverse().slice(0, 12)
   return <section>
     <div className="page-intro"><div><div className="eyebrow">PROGRESSION PERSONNELLE</div>
-      <h1>Mes compétences</h1><p>19 compétences réparties dans 6 domaines. Les XP sont gagnés en accomplissant tes actions.</p></div></div>
+      <h1>Mes compétences</h1><p>19 compétences réparties dans 6 domaines. Les actions accomplies font progresser tes compétences. Les pénalités réduisent ta progression, sans retirer les niveaux acquis.</p></div></div>
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,320px),1fr))', gap: 18 }}>
       {SKILL_GROUPS.map(group => {
         const domain = domainProgress(ledger, group.id)
@@ -37,5 +38,25 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
         </section>
       })}
     </div>
+    <section className="panel" style={{ marginTop: 20, padding: 20 }}>
+      <h2 style={{ fontSize: 17, margin: '0 0 6px' }}>Historique XP</h2>
+      <p style={{ fontSize: 13, opacity: .7, margin: '0 0 18px' }}>12 dernières opérations enregistrées. Les pénalités sont affichées même si ton niveau reste protégé.</p>
+      {recentEvents.length === 0
+        ? <p style={{ opacity: .65, fontSize: 13 }}>Aucune opération XP pour le moment.</p>
+        : <div style={{ display: 'grid', gap: 12 }}>
+          {recentEvents.map(event => {
+            const labels: Record<string, string> = { habit: 'Habitude validée', task: 'Tâche validée', goal: 'Objectif atteint', penalty: 'Pénalité' }
+            const skillNames = event.skillIds.map(id => SKILL_NAMES[id]).join(' · ')
+            return <div key={event.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, paddingBottom: 12, borderBottom: '1px solid rgba(120,120,128,.12)' }}>
+              <div style={{ minWidth: 0 }}>
+                <strong style={{ fontSize: 13 }}>{labels[event.source]}</strong>
+                <div style={{ fontSize: 12, opacity: .7, marginTop: 4, overflowWrap: 'anywhere' }}>{skillNames}</div>
+                <time dateTime={event.at} style={{ display: 'block', fontSize: 11, opacity: .55, marginTop: 4 }}>{Number.isNaN(Date.parse(event.at)) ? '' : new Date(event.at).toLocaleDateString('fr-FR')}</time>
+              </div>
+              <strong style={{ whiteSpace: 'nowrap', fontSize: 13, color: event.amountPerSkill < 0 ? '#dc2626' : '#16a34a' }}>{event.amountPerSkill > 0 ? '+' : ''}{event.amountPerSkill.toLocaleString('fr-FR')} XP / compétence</strong>
+            </div>
+          })}
+        </div>}
+    </section>
   </section>
 }
