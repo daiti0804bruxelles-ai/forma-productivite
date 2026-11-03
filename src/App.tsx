@@ -15,7 +15,7 @@ import type { Session } from '@supabase/supabase-js'
 type Page = 'dashboard' | 'habits' | 'tasks' | 'calendar' | 'goals' | 'skills'
 type Period = 'Matin' | 'Après-midi' | 'Soir'
 type Habit = { id:string; title:string; period:Period; category:string; skillIds?:SkillId[] }
-type Task = { id:string; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[] }
+type Task = { id:string; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[]; dueDate?:string }
 type Event = { id:string; title:string; date:string; time:string; endTime?:string; category:string; repeatDays?:number[] }
 type AppData = { habits:Habit[]; tasks:Task[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; xpLedger?:XpLedger; lastPenaltyCheckDate?:string }
 const todayKey = () => dateKey(new Date())
@@ -30,17 +30,18 @@ function rollOverTasks(value:AppData,today=todayKey()):AppData {
   let processed=0
   while(dateKey(day)<today && processed<366){
    const key=dateKey(day)
-   {
-    for(const habit of value.habits){
-     if(!(value.completedHabits[key]||[]).includes(habit.id)){
-      xpLedger=penalizeXp(xpLedger,`missed-habit:${habit.id}:${key}`,habit.skillIds,-5)
-     }
+   for(const habit of value.habits){
+    if(!(value.completedHabits[key]||[]).includes(habit.id)){
+     xpLedger=penalizeXp(xpLedger,`missed-habit:${habit.id}:${key}`,habit.skillIds,-5)
     }
    }
    for(const task of value.tasks){
-    if(task.date>key || (task.done && (!task.recurring || task.date===key)))continue
-    // Une tâche récurrente validée à sa date n'est pas pénalisée ce jour-là.
-    xpLedger=penalizeXp(xpLedger,`late-task:${task.id}:${key}`,task.skillIds,task.recurring?-1.5:-5)
+    if(task.recurring){
+     if(task.date>key || (task.done && task.date===key))continue
+     xpLedger=penalizeXp(xpLedger,`late-task:${task.id}:${key}`,task.skillIds,-1.5)
+    }else if(!task.done && (task.dueDate||task.date)<key){
+     xpLedger=penalizeXp(xpLedger,`late-task:${task.id}:${key}`,task.skillIds,-5)
+    }
    }
    day=addDays(day,1);processed++
   }
@@ -49,7 +50,7 @@ function rollOverTasks(value:AppData,today=todayKey()):AppData {
   if(task.date>=today)return [task]
   if(task.recurring)return [{...task,date:today,done:false}]
   if(task.done)return []
-  return [{...task,date:today}]
+  return [{...task,date:today,dueDate:task.dueDate||task.date}]
  })
  return tasks.length!==value.tasks.length||tasks.some((task,i)=>task!==value.tasks[i])||value.lastPenaltyCheckDate!==today||xpLedger!==value.xpLedger?{...value,tasks,xpLedger,lastPenaltyCheckDate:today}:value
 }
@@ -77,7 +78,7 @@ function isAppData(value:unknown):value is AppData{
  if(d.xpLedger!==undefined&&!isValidXpLedger(d.xpLedger))return false
  if(d.lastPenaltyCheckDate!==undefined&&!validDate(d.lastPenaltyCheckDate))return false
  if(!d.habits.every(h=>h&&validText(h.id)&&validText(h.title)&&validText(h.category)&&['Matin','Après-midi','Soir'].includes(h.period)&&validSkills(h.skillIds)))return false
- if(!d.tasks.every(t=>t&&validText(t.id)&&validText(t.title)&&validText(t.category)&&validDate(t.date)&&typeof t.done==='boolean'&&(t.recurring===undefined||typeof t.recurring==='boolean')&&validSkills(t.skillIds)))return false
+ if(!d.tasks.every(t=>t&&validText(t.id)&&validText(t.title)&&validText(t.category)&&validDate(t.date)&&typeof t.done==='boolean'&&(t.recurring===undefined||typeof t.recurring==='boolean')&&validSkills(t.skillIds)&&(t.dueDate===undefined||validDate(t.dueDate))))return false
  if(!d.events.every(e=>e&&validText(e.id)&&validText(e.title)&&validText(e.category)&&validDate(e.date)&&typeof e.time==='string'&&/^\d{2}:\d{2}$/.test(e.time)&&(e.endTime===undefined||(typeof e.endTime==='string'&&/^\d{2}:\d{2}$/.test(e.endTime)&&e.endTime>e.time))&&(e.repeatDays===undefined||(Array.isArray(e.repeatDays)&&e.repeatDays.length>0&&e.repeatDays.length<=7&&e.repeatDays.every(day=>Number.isInteger(day)&&day>=0&&day<=6)&&new Set(e.repeatDays).size===e.repeatDays.length))))return false
  return Object.entries(d.completedHabits).every(([day,ids])=>validDate(day)&&Array.isArray(ids)&&ids.every(validText))
 }
@@ -375,7 +376,7 @@ useEffect(() => {
  })
  const openAdd=(type:'task'|'habit'|'event',date=todayKey())=>{setEditing(null);setFormTitle('');setFormSkillIds([]);setFormCategory('Travail');setFormPeriod('Matin');setFormRecurring(false);setFormDate(date);setFormTime('09:00');setFormEndTime('10:00');setFormRepeatDays([]);setModal(type)}
  const openEdit=(type:'task'|'habit'|'event',record:Task|Habit|Event)=>{setEditing(record.id);setFormTitle(record.title);setFormSkillIds('skillIds' in record ? (record.skillIds || []) : []);setFormCategory(record.category);if('period'in record)setFormPeriod(record.period);if('recurring'in record)setFormRecurring(Boolean(record.recurring));if('date'in record)setFormDate(record.date);if('time'in record){setFormRepeatDays(record.repeatDays||[]);setFormTime(record.time);const [hours,minutes]=record.time.split(':').map(Number);setFormEndTime(record.endTime||`${String(Math.min(hours+1,23)).padStart(2,'0')}:${String(hours===23?Math.min(minutes+1,59):minutes).padStart(2,'0')}`)}setModal(type)}
- const submit=(e:FormEvent)=>{e.preventDefault();if(!formTitle.trim()||!modal)return;if(modal==='event'&&formEndTime<=formTime)return;const title=formTitle.trim();if(modal==='habit'){setData(prev=>({...prev,habits:editing?prev.habits.map(h=>h.id===editing?{...h,title,period:formPeriod,category:formCategory,skillIds:formSkillIds}:h):[...prev.habits,{id:id(),title,period:formPeriod,category:formCategory,skillIds:formSkillIds}]}))}if(modal==='task'){setData(prev=>({...prev,tasks:editing?prev.tasks.map(t=>t.id===editing?{...t,title,date:formDate,recurring:formRecurring,category:formCategory,skillIds:formSkillIds}:t):[...prev.tasks,{id:id(),title,date:formDate,recurring:formRecurring,category:formCategory,done:false,skillIds:formSkillIds}]}))}if(modal==='event'){setData(prev=>({...prev,events:editing?prev.events.map(ev=>ev.id===editing?{...ev,title,date:formDate,time:formTime,endTime:formEndTime,repeatDays:formRepeatDays.length?formRepeatDays:undefined,category:formCategory}:ev):[...prev.events,{id:id(),title,date:formDate,time:formTime,endTime:formEndTime,category:formCategory}]}))}setModal(null)}
+ const submit=(e:FormEvent)=>{e.preventDefault();if(!formTitle.trim()||!modal)return;if(modal==='event'&&formEndTime<=formTime)return;const title=formTitle.trim();if(modal==='habit'){setData(prev=>({...prev,habits:editing?prev.habits.map(h=>h.id===editing?{...h,title,period:formPeriod,category:formCategory,skillIds:formSkillIds}:h):[...prev.habits,{id:id(),title,period:formPeriod,category:formCategory,skillIds:formSkillIds}]}))}if(modal==='task'){setData(prev=>({...prev,tasks:editing?prev.tasks.map(t=>t.id===editing?{...t,title,date:formDate,dueDate:undefined,recurring:formRecurring,category:formCategory,skillIds:formSkillIds}:t):[...prev.tasks,{id:id(),title,date:formDate,recurring:formRecurring,category:formCategory,done:false,skillIds:formSkillIds}]}))}if(modal==='event'){setData(prev=>({...prev,events:editing?prev.events.map(ev=>ev.id===editing?{...ev,title,date:formDate,time:formTime,endTime:formEndTime,repeatDays:formRepeatDays.length?formRepeatDays:undefined,category:formCategory}:ev):[...prev.events,{id:id(),title,date:formDate,time:formTime,endTime:formEndTime,category:formCategory}]}))}setModal(null)}
  const deleteItem=(type:'task'|'habit'|'event',itemId:string)=>setPendingDelete({type,id:itemId})
  const confirmDelete=()=>{if(!pendingDelete)return;const {type,id:itemId}=pendingDelete;setData(prev=>type==='task'?{...prev,tasks:prev.tasks.filter(t=>t.id!==itemId)}:type==='event'?{...prev,events:prev.events.filter(e=>e.id!==itemId)}:{...prev,habits:prev.habits.filter(h=>h.id!==itemId)});setPendingDelete(null);setModal(null)}
  const openBackup=()=>{setBackupError('');setRestorePreview(null);setBackupOpen(true);setMobileOpen(false)}
