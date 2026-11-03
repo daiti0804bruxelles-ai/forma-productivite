@@ -65,6 +65,32 @@ export function domainProgress(ledger: XpLedger | undefined, groupId: string): X
   })))
 }
 
+export type GoalXpSnapshot = {
+  id: string
+  skillIds?: SkillId[]
+  difficulty?: 'moderate' | 'ambitious' | 'exceptional'
+  history?: readonly unknown[]
+}
+
+export function awardCompletedGoals<T extends GoalXpSnapshot>(
+  ledger: XpLedger | undefined,
+  previousGoals: readonly T[],
+  nextGoals: readonly T[],
+  completionPercent: (goal: T) => number,
+): XpLedger | undefined {
+  let nextLedger = ledger
+  for (const goal of nextGoals) {
+    const previous = previousGoals.find(item => item.id === goal.id)
+    if (!previous) continue
+    // Un changement de cible ou de difficulté n'est pas une réalisation.
+    if ((goal.history?.length ?? 0) <= (previous.history?.length ?? 0)) continue
+    if (completionPercent(previous) >= 100 || completionPercent(goal) !== 100) continue
+    const xp = goal.difficulty === 'exceptional' ? 750 : goal.difficulty === 'ambitious' ? 300 : 100
+    nextLedger = awardXp(nextLedger, `goal:${goal.id}`, 'goal', goal.skillIds, xp)
+  }
+  return nextLedger
+}
+
 export function isValidXpLedger(value: unknown): value is XpLedger {
   if (!value || typeof value !== 'object' || !('events' in value)) return false
   const events = (value as XpLedger).events
