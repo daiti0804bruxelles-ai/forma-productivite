@@ -2,7 +2,8 @@ import { isSkillId, type SkillId } from './skillsCatalog'
 
 export type GoalHistory={at:string;from:number;to:number}
 export type GoalMode='cumulative'|'measured'
-export type Goal={id:string;title:string;category:string;skillIds?:SkillId[];unit:string;target:number;current:number;deadline?:string;history?:GoalHistory[];mode?:GoalMode;start?:number}
+export type GoalDifficulty='moderate'|'ambitious'|'exceptional'
+export type Goal={id:string;title:string;category:string;skillIds?:SkillId[];difficulty?:GoalDifficulty;unit:string;target:number;current:number;deadline?:string;history?:GoalHistory[];mode?:GoalMode;start?:number}
 export const round=(n:number)=>Math.round((n+Number.EPSILON)*100)/100
 export function progressPercent(goal:Goal){
  if(goal.mode==='measured'){
@@ -18,6 +19,7 @@ export function isValidGoal(g:Goal){
  const str=(s:unknown)=>typeof s==='string'&&s.length<=200
  if(!g||!str(g.id)||!str(g.title)||!str(g.category)||!str(g.unit)||!num(g.target)||g.target<=0||!num(g.current))return false
  if(g.skillIds!==undefined&&(!Array.isArray(g.skillIds)||g.skillIds.length>19||!g.skillIds.every(isSkillId)||new Set(g.skillIds).size!==g.skillIds.length))return false
+ if(g.difficulty!==undefined&&!['moderate','ambitious','exceptional'].includes(g.difficulty))return false
  if(g.mode!==undefined&&g.mode!=='cumulative'&&g.mode!=='measured')return false
  if(g.mode==='measured'&&(!num(g.start)||g.start===g.target))return false
  if(g.deadline!==undefined&&(!str(g.deadline)||!/^\d{4}-\d{2}-\d{2}$/.test(g.deadline)))return false
