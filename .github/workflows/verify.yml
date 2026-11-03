@@ -24,5 +24,7 @@ jobs:
           node-version: '22'
       - name: Installer les dépendances
         run: npm install --no-audit --no-fund
+      - name: Tester les règles XP
+        run: node scripts/test-xp.mjs
       - name: Vérifier TypeScript et compiler
         run: npm run build
