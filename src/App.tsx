@@ -410,7 +410,7 @@ useEffect(() => {
    let xpLedger=prev.xpLedger
    for(const goal of goals){
     const previous=(prev.goals||[]).find(g=>g.id===goal.id)
-    if(previous && progressPercent(previous)<100 && progressPercent(goal)===100){
+    if(previous && (goal.history?.length||0)>(previous.history?.length||0) && progressPercent(previous)<100 && progressPercent(goal)===100){
      xpLedger=awardXp(xpLedger,`goal:${goal.id}`,'goal',goal.skillIds,goal.difficulty==='exceptional'?750:goal.difficulty==='ambitious'?300:100)
     }
    }
