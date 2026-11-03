@@ -39,8 +39,9 @@ function rollOverTasks(value:AppData,today=todayKey()):AppData {
     if(task.recurring){
      if(task.date>key || (task.done && task.date===key))continue
      xpLedger=penalizeXp(xpLedger,`late-task:${task.id}:${key}`,task.skillIds,-1.5)
-    }else if(!task.done && (task.dueDate||task.date)<key){
-     xpLedger=penalizeXp(xpLedger,`late-task:${task.id}:${key}`,task.skillIds,-5)
+    }else if(!task.done && (task.dueDate||task.date)<dateKey(addDays(day,1))){
+     const overdueDay=dateKey(addDays(day,1))
+     xpLedger=penalizeXp(xpLedger,`late-task:${task.id}:${overdueDay}`,task.skillIds,-5)
     }
    }
    day=addDays(day,1);processed++
