@@ -10,7 +10,7 @@ import { isSkillId, type SkillId } from './skillsCatalog'
 import SharedGoalsPage from './SharedGoalsPage'
 import type { Goal } from './GoalsPage'
 import { isValidGoal, progressPercent } from './goalModel'
-import { awardXp, isValidXpLedger, type XpLedger } from './xpEngine'
+import { awardXp, awardCompletedGoals, isValidXpLedger, type XpLedger } from './xpEngine'
 import { rollOverTasks as advanceDay } from './xpSchedule'
 import type { Session } from '@supabase/supabase-js'
 type Page = 'dashboard' | 'habits' | 'tasks' | 'calendar' | 'goals' | 'skills'
@@ -407,13 +407,7 @@ useEffect(() => {
     <button type="button" role="tab" aria-selected={goalsTab==='shared'} className={goalsTab==='shared'?'primary-btn':'secondary-btn'} onClick={()=>setGoalsTab('shared')}><Users size={17}/> Partagés</button>
    </div>
    {goalsTab==='personal'?<GoalsPage goals={data.goals||[]} onChange={goals=>setData(prev=>{
-   let xpLedger=prev.xpLedger
-   for(const goal of goals){
-    const previous=(prev.goals||[]).find(g=>g.id===goal.id)
-    if(previous && (goal.history?.length||0)>(previous.history?.length||0) && progressPercent(previous)<100 && progressPercent(goal)===100){
-     xpLedger=awardXp(xpLedger,`goal:${goal.id}`,'goal',goal.skillIds,goal.difficulty==='exceptional'?750:goal.difficulty==='ambitious'?300:100)
-    }
-   }
+   const xpLedger=awardCompletedGoals(prev.xpLedger,prev.goals||[],goals,progressPercent)
    return {...prev,goals,xpLedger}
   })}/>:session?.user?<SharedGoalsPage userId={session.user.id}/>:null}
   </>}
