@@ -11,7 +11,7 @@ const bundle = await build({
   logLevel: 'silent',
 })
 const url = 'data:text/javascript;base64,' + Buffer.from(bundle.outputFiles[0].text).toString('base64')
-const { awardXp, penalizeXp, skillProgress, domainProgress, isValidXpLedger } = await import(url)
+const { awardXp, penalizeXp, skillProgress, domainProgress, isValidXpLedger, awardCompletedGoals } = await import(url)
 const skill = 'consistency'
 let ledger = awardXp(undefined, 'habit:h1:2026-11-01', 'habit', [skill], 10)
 assert.equal(ledger.events.length, 1)
@@ -30,4 +30,16 @@ assert.equal(skillProgress(ledger, skill).level, 2, 'un niveau acquis ne peut pa
 assert.equal(skillProgress(ledger, skill).xp, 100)
 assert.equal(domainProgress(ledger, 'discipline').level >= 1, true)
 assert.equal(isValidXpLedger({ events: [{ ...ledger.events[0], amountPerSkill: -5 }] }), false)
+const previousGoal={id:'g-test',skillIds:['consistency','organization'],difficulty:'ambitious',history:[],percent:80}
+const editedTarget={...previousGoal,percent:100}
+assert.equal(awardCompletedGoals(undefined,[previousGoal],[editedTarget],g=>g.percent),undefined,
+  'changing a target must not award XP')
+const completedGoal={...previousGoal,history:[{at:'2026-11-03'}],percent:100}
+const goalLedger=awardCompletedGoals(undefined,[previousGoal],[completedGoal],g=>g.percent)
+assert.equal(goalLedger.events.length,1)
+assert.equal(goalLedger.events[0].amountPerSkill,300)
+assert.deepEqual(goalLedger.events[0].skillIds,['consistency','organization'])
+assert.equal(domainProgress(goalLedger,'discipline').xp,120,'domain gets 20% of XP per selected skill')
+assert.equal(awardCompletedGoals(goalLedger,[previousGoal],[completedGoal],g=>g.percent).events.length,1,
+  'goal XP must not be awarded twice')
 console.log('Tests XP réussis : gains, doublons, pénalités, protection des niveaux et validation.')
