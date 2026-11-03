@@ -24,7 +24,7 @@ export default function SkillSelector({ value, onChange }: Props) {
       </button>
       {!open && value.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-          {SKILL_GROUPS.flatMap(group => group.skills).filter(skill => value.includes(skill.id)).map(skill =>
+          {SKILL_GROUPS.flatMap(group => group.skills.map(skill => ({ id: skill.id, name: skill.name }))).filter(skill => value.includes(skill.id)).map(skill =>
             <span key={skill.id} style={{ borderRadius: 20, background: 'rgba(120,120,128,.14)', padding: '4px 9px', fontSize: 12 }}>{skill.name}</span>)}
         </div>
       )}
