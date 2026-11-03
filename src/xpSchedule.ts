@@ -37,7 +37,13 @@ export function rollOverTasks<H extends ScheduledHabit, T extends ScheduledTask>
       for (const task of value.tasks) {
         if (task.createdOn && task.createdOn > key) continue
         if (task.recurring) {
-          if (task.date > key || (task.done && task.date === key)) continue
+          // Les validations des jours précédents restent dans le journal XP.
+          // Le champ done ne décrit que l'occurrence actuellement affichée.
+          const completedInLedger = xpLedger?.events.some(event =>
+            event.key === `task:${task.id}:${key}` && event.source === 'task'
+          ) ?? false
+          if (task.createdOn && task.createdOn > key) continue
+          if (task.date > key || (task.done && task.date === key) || completedInLedger) continue
           xpLedger = penalizeXp(xpLedger, `late-task:${task.id}:${key}`, task.skillIds, -1.5)
         } else if (!task.done && (task.dueDate || task.date) < overdueDay) {
           xpLedger = penalizeXp(xpLedger, `late-task:${task.id}:${overdueDay}`, task.skillIds, -5)
