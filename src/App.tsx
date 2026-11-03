@@ -8,14 +8,15 @@ import SkillSelector from './SkillSelector'
 import { isSkillId, type SkillId } from './skillsCatalog'
 import SharedGoalsPage from './SharedGoalsPage'
 import type { Goal } from './GoalsPage'
-import { isValidGoal } from './goalModel'
+import { isValidGoal, progressPercent } from './goalModel'
+import { awardXp, isValidXpLedger, type XpLedger } from './xpEngine'
 import type { Session } from '@supabase/supabase-js'
 type Page = 'dashboard' | 'habits' | 'tasks' | 'calendar' | 'goals'
 type Period = 'Matin' | 'Après-midi' | 'Soir'
 type Habit = { id:string; title:string; period:Period; category:string; skillIds?:SkillId[] }
 type Task = { id:string; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[] }
 type Event = { id:string; title:string; date:string; time:string; endTime?:string; category:string; repeatDays?:number[] }
-type AppData = { habits:Habit[]; tasks:Task[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]> }
+type AppData = { habits:Habit[]; tasks:Task[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; xpLedger?:XpLedger }
 const todayKey = () => dateKey(new Date())
 const weekdayOptions=[{day:1,label:'Lun'},{day:2,label:'Mar'},{day:3,label:'Mer'},{day:4,label:'Jeu'},{day:5,label:'Ven'},{day:6,label:'Sam'},{day:0,label:'Dim'}]
 function eventOccursOn(event:Event,day:string){return event.date===day||(day>event.date&&Array.isArray(event.repeatDays)&&event.repeatDays.includes(makeDate(day).getDay()))}
@@ -49,6 +50,7 @@ function isAppData(value:unknown):value is AppData{
  if(!Array.isArray(d.habits)||!Array.isArray(d.tasks)||!Array.isArray(d.events)||!d.completedHabits||typeof d.completedHabits!=='object'||Array.isArray(d.completedHabits))return false
  if(d.habits.length>10000||d.tasks.length>10000||d.events.length>10000||(d.goals!==undefined&&(!Array.isArray(d.goals)||d.goals.length>10000)))return false
  if(d.goals!==undefined&&!d.goals.every(isValidGoal))return false
+ if(d.xpLedger!==undefined&&!isValidXpLedger(d.xpLedger))return false
  if(!d.habits.every(h=>h&&validText(h.id)&&validText(h.title)&&validText(h.category)&&['Matin','Après-midi','Soir'].includes(h.period)&&validSkills(h.skillIds)))return false
  if(!d.tasks.every(t=>t&&validText(t.id)&&validText(t.title)&&validText(t.category)&&validDate(t.date)&&typeof t.done==='boolean'&&(t.recurring===undefined||typeof t.recurring==='boolean')&&validSkills(t.skillIds)))return false
  if(!d.events.every(e=>e&&validText(e.id)&&validText(e.title)&&validText(e.category)&&validDate(e.date)&&typeof e.time==='string'&&/^\d{2}:\d{2}$/.test(e.time)&&(e.endTime===undefined||(typeof e.endTime==='string'&&/^\d{2}:\d{2}$/.test(e.endTime)&&e.endTime>e.time))&&(e.repeatDays===undefined||(Array.isArray(e.repeatDays)&&e.repeatDays.length>0&&e.repeatDays.length<=7&&e.repeatDays.every(day=>Number.isInteger(day)&&day>=0&&day<=6)&&new Set(e.repeatDays).size===e.repeatDays.length))))return false
@@ -294,7 +296,16 @@ useEffect(() => {
  const habitProgress=data.habits.length?Math.round(habitsDone/data.habits.length*100):0
  const todayEvents=data.events.filter(e=>e.date===todayKey()).sort((a,b)=>a.time.localeCompare(b.time))
  const go=(p:Page)=>{setPage(p);setMobileOpen(false)}
- const toggleHabit=(habitId:string)=>setData(prev=>{const key=todayKey();const now=prev.completedHabits[key]||[];return {...prev,completedHabits:{...prev.completedHabits,[key]:now.includes(habitId)?now.filter(i=>i!==habitId):[...now,habitId]}}})
+ const toggleHabit=(habitId:string)=>setData(prev=>{
+  const key=todayKey(), now=prev.completedHabits[key]||[]
+  const alreadyDone=now.includes(habitId)
+  const habit=prev.habits.find(h=>h.id===habitId)
+  return {
+    ...prev,
+    completedHabits:{...prev.completedHabits,[key]:alreadyDone?now.filter(i=>i!==habitId):[...now,habitId]},
+    xpLedger: !alreadyDone && habit ? awardXp(prev.xpLedger,`habit:${habitId}:${key}`,'habit',habit.skillIds,10) : prev.xpLedger
+  }
+ })
  const [draggedHabitId,setDraggedHabitId]=useState<string|null>(null)
  const moveHabit=(habitId:string,targetPeriod:Period,targetId?:string)=>{
   setData(prev=>{
@@ -327,7 +338,16 @@ useEffect(() => {
    return {...prev,habits:prev.habits.map(h=>h.period===current.period?reordered[index++]:h)}
   })
  }
- const toggleTask=(taskId:string)=>setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,done:!t.done}:t)}))
+ const toggleTask=(taskId:string)=>setData(prev=>{
+  const task=prev.tasks.find(t=>t.id===taskId)
+  if(!task)return prev
+  const key=task.recurring?`task:${task.id}:${task.date}`:`task:${task.id}`
+  return {
+    ...prev,
+    tasks:prev.tasks.map(t=>t.id===taskId?{...t,done:!t.done}:t),
+    xpLedger: !task.done ? awardXp(prev.xpLedger,key,'task',task.skillIds,task.recurring?3:10) : prev.xpLedger
+  }
+ })
  const openAdd=(type:'task'|'habit'|'event',date=todayKey())=>{setEditing(null);setFormTitle('');setFormSkillIds([]);setFormCategory('Travail');setFormPeriod('Matin');setFormRecurring(false);setFormDate(date);setFormTime('09:00');setFormEndTime('10:00');setFormRepeatDays([]);setModal(type)}
  const openEdit=(type:'task'|'habit'|'event',record:Task|Habit|Event)=>{setEditing(record.id);setFormTitle(record.title);setFormSkillIds('skillIds' in record ? (record.skillIds || []) : []);setFormCategory(record.category);if('period'in record)setFormPeriod(record.period);if('recurring'in record)setFormRecurring(Boolean(record.recurring));if('date'in record)setFormDate(record.date);if('time'in record){setFormRepeatDays(record.repeatDays||[]);setFormTime(record.time);const [hours,minutes]=record.time.split(':').map(Number);setFormEndTime(record.endTime||`${String(Math.min(hours+1,23)).padStart(2,'0')}:${String(hours===23?Math.min(minutes+1,59):minutes).padStart(2,'0')}`)}setModal(type)}
  const submit=(e:FormEvent)=>{e.preventDefault();if(!formTitle.trim()||!modal)return;if(modal==='event'&&formEndTime<=formTime)return;const title=formTitle.trim();if(modal==='habit'){setData(prev=>({...prev,habits:editing?prev.habits.map(h=>h.id===editing?{...h,title,period:formPeriod,category:formCategory,skillIds:formSkillIds}:h):[...prev.habits,{id:id(),title,period:formPeriod,category:formCategory,skillIds:formSkillIds}]}))}if(modal==='task'){setData(prev=>({...prev,tasks:editing?prev.tasks.map(t=>t.id===editing?{...t,title,date:formDate,recurring:formRecurring,category:formCategory,skillIds:formSkillIds}:t):[...prev.tasks,{id:id(),title,date:formDate,recurring:formRecurring,category:formCategory,done:false,skillIds:formSkillIds}]}))}if(modal==='event'){setData(prev=>({...prev,events:editing?prev.events.map(ev=>ev.id===editing?{...ev,title,date:formDate,time:formTime,endTime:formEndTime,repeatDays:formRepeatDays.length?formRepeatDays:undefined,category:formCategory}:ev):[...prev.events,{id:id(),title,date:formDate,time:formTime,endTime:formEndTime,category:formCategory}]}))}setModal(null)}
@@ -390,7 +410,17 @@ useEffect(() => {
     <button type="button" role="tab" aria-selected={goalsTab==='personal'} className={goalsTab==='personal'?'primary-btn':'secondary-btn'} onClick={()=>setGoalsTab('personal')}><CircleCheck size={17}/> Personnels</button>
     <button type="button" role="tab" aria-selected={goalsTab==='shared'} className={goalsTab==='shared'?'primary-btn':'secondary-btn'} onClick={()=>setGoalsTab('shared')}><Users size={17}/> Partagés</button>
    </div>
-   {goalsTab==='personal'?<GoalsPage goals={data.goals||[]} onChange={goals=>setData(prev=>({...prev,goals}))}/>:session?.user?<SharedGoalsPage userId={session.user.id}/>:null}
+   {goalsTab==='personal'?<GoalsPage goals={data.goals||[]} onChange={goals=>setData(prev=>{
+   let xpLedger=prev.xpLedger
+   for(const goal of goals){
+    const previous=(prev.goals||[]).find(g=>g.id===goal.id)
+    if(previous && progressPercent(previous)<100 && progressPercent(goal)===100){
+     // Le palier d'objectif sera configurable dans une étape suivante.
+     xpLedger=awardXp(xpLedger,`goal:${goal.id}`,'goal',goal.skillIds,100)
+    }
+   }
+   return {...prev,goals,xpLedger}
+  })}/>:session?.user?<SharedGoalsPage userId={session.user.id}/>:null}
   </>}
   {page==='calendar'&&<><section className="page-intro"><div><div className="eyebrow"><span className="eyebrow-line"/> UNE VUE SUR VOTRE TEMPS</div><h1>Calendrier</h1><p>Planifiez vos activités et retrouvez tout votre programme.</p></div><button className="primary-btn" onClick={()=>openAdd('event',selectedDate)}><Plus size={18}/> Nouvelle activité</button></section><div className="calendar-layout"><section className="panel calendar-panel"><div className="calendar-header"><h2>{frDate(visibleMonth,{month:'long',year:'numeric'})}</h2><div className="calendar-controls"><button onClick={()=>{const d=new Date();setVisibleMonth(new Date(d.getFullYear(),d.getMonth(),1));setSelectedDate(todayKey())}}>Aujourd'hui</button><button aria-label="Mois précédent" onClick={()=>setVisibleMonth(new Date(visibleMonth.getFullYear(),visibleMonth.getMonth()-1,1))}><ChevronLeft size={20}/></button><button aria-label="Mois suivant" onClick={()=>setVisibleMonth(new Date(visibleMonth.getFullYear(),visibleMonth.getMonth()+1,1))}><ChevronRight size={20}/></button></div></div><label style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,padding:'8px 2px 16px',fontSize:13,fontWeight:600,cursor:'pointer'}}><span>Afficher mes tâches</span><input type="checkbox" role="switch" checked={showCalendarTasks} onChange={e=>setShowCalendarTasks(e.target.checked)} aria-label="Afficher mes tâches sur le calendrier" style={{width:19,height:19,accentColor:'#a78bfa',cursor:'pointer'}}/></label><div className="calendar-weekdays">{['Lun','Mar','Mer','Jeu','Ven','Sam','Dim'].map(d=><span key={d}>{d}</span>)}</div><div className="calendar-days">{monthDays.map(d=>{const key=dateKey(d);const isCurrent=d.getMonth()===visibleMonth.getMonth();const dayEvents=data.events.filter(e=>eventOccursOn(e,key)).sort((a,b)=>a.time.localeCompare(b.time));const dayTasks=showCalendarTasks?data.tasks.filter(t=>t.date===key):[];const dayItems=[...dayEvents.map(ev=>({id:'event-'+ev.id,label:`${ev.time}${ev.endTime?'–'+ev.endTime:''} ${ev.title}`,isTask:false,isSport:ev.category==='Sport'})),...dayTasks.map(t=>({id:'task-'+t.id,label:`${t.done?'✓ ':''}${t.title}`,isTask:true,isSport:false}))];return <button key={key} type="button" aria-label={`${frDate(d,{weekday:'long',day:'numeric',month:'long'})}, ${dayItems.length} élément(s)`} className={`calendar-day ${isCurrent?'':'outside'} ${key===todayKey()?'is-today':''} ${key===selectedDate?'is-selected':''}`} style={{minHeight:92,display:'flex',flexDirection:'column',alignItems:'stretch',justifyContent:'flex-start',gap:4,padding:'7px 5px',overflow:'hidden',position:'relative'}} onClick={()=>{setSelectedDate(key);if(!isCurrent)setVisibleMonth(new Date(d.getFullYear(),d.getMonth(),1))}}><span style={{alignSelf:'flex-start',flexShrink:0,position:'relative'}}>{d.getDate()}</span><div style={{display:'flex',flexDirection:'column',gap:3,width:'100%',minWidth:0,overflow:'hidden',position:'relative',flex:'0 1 auto'}}>{dayItems.slice(0,2).map(item=><div key={item.id} title={item.label} style={{display:'block',boxSizing:'border-box',width:'100%',maxWidth:'100%',minWidth:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',borderRadius:5,padding:'3px 5px',fontSize:10,fontWeight:600,lineHeight:'13px',textAlign:'left',background:item.isTask?'#dbeafe':item.isSport?'#dcfce7':'#ede9fe',color:item.isTask?'#1d4ed8':item.isSport?'#166534':'#5b21b6',position:'relative',flexShrink:0}}>{item.label}</div>)}{dayItems.length>2&&<div style={{fontSize:10,textAlign:'left',opacity:.7,lineHeight:'13px',flexShrink:0}}>+{dayItems.length-2} autre(s)</div>}</div></button>})}</div><div className="calendar-legend"><span><i className="dot-purple"/> Activités planifiées</span>{showCalendarTasks&&<span><i className="dot-green"/> Tâches</span>}</div></section><section className="panel selected-panel"><div className="panel-heading"><div><h2>{frDate(makeDate(selectedDate),{weekday:'long',day:'numeric',month:'long'})}</h2><p>Votre planning du jour</p></div></div><div className="schedule-block"><div className="schedule-subtitle">ACTIVITÉS</div>{selectedEvents.map(ev=><div className="schedule-item" key={ev.id}><span className="schedule-time">{ev.time}{ev.endTime?` – ${ev.endTime}`:""}</span><span className={`agenda-stripe ${categoryClass[ev.category]||'lavender'}`}/><div><strong>{ev.title}</strong><small>{ev.category}</small></div><button className="small-icon" aria-label={`Modifier ${ev.title}`} onClick={()=>openEdit('event',ev)}><Pencil size={15}/></button><button className="small-icon" aria-label={`Supprimer ${ev.title}`} onClick={()=>deleteItem('event',ev.id)}><Trash2 size={15}/></button></div>)}{selectedEvents.length===0&&<Empty message="Aucune activité prévue."/>}<button className="bottom-link" onClick={()=>openAdd('event',selectedDate)}><Plus size={16}/> Ajouter une activité</button></div>{showCalendarTasks&&<div className="schedule-block"><div className="schedule-subtitle">TÂCHES</div>{selectedCalendarTasks.map(t=><div className="schedule-item" key={t.id}><div><strong>{t.title}</strong><small>{t.done?'Terminée':t.category}</small></div></div>)}{selectedCalendarTasks.length===0&&<Empty message="Aucune tâche prévue."/>}<button className="bottom-link" onClick={()=>openAdd('task',selectedDate)}><Plus size={16}/> Planifier une tâche</button></div>}</section></div></>}
   </main></div>
