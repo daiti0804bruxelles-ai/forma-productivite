@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, UserRound } from 'lucide-react'
 import type { CharacterAppearance } from './CharacterPage'
 import { SKILL_GROUPS } from './skillsCatalog'
 import { domainProgress, skillProgress, type XpLedger } from './xpEngine'
@@ -23,7 +23,7 @@ export default function SkillsPage({ ledger, appearance, onOpenCharacter }: { le
         <div style={{textAlign:'center',fontSize:12,letterSpacing:1,opacity:.65,marginBottom:10}}>MON PERSONNAGE</div>
         <div style={{flex:1,display:'grid',placeItems:'center',borderRadius:18,background:'rgba(120,120,128,.06)',padding:20}}>
           <div style={{textAlign:'center'}}>
-            <div style={{fontSize:76,lineHeight:1.2}}>🧑‍🚀</div>
+            <UserRound size={76} strokeWidth={1.1} style={{margin:"0 auto",opacity:.55}}/>
             <p style={{fontSize:13,opacity:.7,marginTop:14}}>Avatar stylisé en préparation</p>
             <p style={{fontSize:11,opacity:.55,marginTop:5}}>Portrait IA à partir d'une photo, après validation de la direction artistique</p>
           </div>
