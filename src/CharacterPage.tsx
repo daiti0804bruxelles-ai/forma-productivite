@@ -1,5 +1,6 @@
 import { SKILL_GROUPS } from './skillsCatalog'
 import AvatarCreationPrototype from './AvatarCreationPrototype'
+import { AvatarImage } from './avatarStorage'
 import { domainProgress, type XpLedger } from './xpEngine'
 
 export type CharacterAppearance = { skin: 'light' | 'medium' | 'deep'; outfit: 'slate' | 'violet' | 'emerald'; hair: 'short' | 'long' | 'shaved' }
@@ -48,7 +49,7 @@ function Avatar({ accent, stage, appearance }: { accent: string; stage: number; 
   </svg>
 }
 
-export default function CharacterPage({ledger,appearance,onAppearanceChange}:{ledger?:XpLedger;appearance:CharacterAppearance;onAppearanceChange:(appearance:CharacterAppearance)=>void}) {
+export default function CharacterPage({ledger,appearance,onAppearanceChange,userId,avatarPath,avatarUpdatedAt,onAvatarSaved}:{ledger?:XpLedger;appearance:CharacterAppearance;onAppearanceChange:(appearance:CharacterAppearance)=>void;userId:string;avatarPath?:string;avatarUpdatedAt?:string;onAvatarSaved:(path:string)=>void}) {
   const domains=SKILL_GROUPS.map(group=>({...group,progress:domainProgress(ledger,group.id)}))
   const strongest=[...domains].sort((a,b)=>b.progress.xp-a.progress.xp)[0]
   const highestLevel=Math.max(...domains.map(domain=>domain.progress.level))
@@ -60,7 +61,7 @@ export default function CharacterPage({ledger,appearance,onAppearanceChange}:{le
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,330px),1fr))',gap:20,alignItems:'start'}}>
       <section className="panel" style={{padding:24,textAlign:'center',overflow:'hidden'}}>
         <div style={{borderRadius:20,background:'linear-gradient(160deg,rgba(148,163,184,.09),rgba(148,163,184,.02))',padding:'12px 4px'}}>
-          <Avatar accent={accent} stage={stage} appearance={appearance}/>
+          {avatarPath?<AvatarImage path={avatarPath} revision={avatarUpdatedAt} style={{maxHeight:420}}/>:<Avatar accent={accent} stage={stage} appearance={appearance}/>}
         </div>
         <h2 style={{fontSize:21,margin:'16px 0 6px'}}>Ton aventurier</h2>
         <p style={{fontSize:13,opacity:.7,margin:'0 0 12px'}}>Apparence {stage===1?'initiale':stage===2?'éveillée':stage===3?'renforcée':'légendaire'} · Domaine dominant : {strongest.name}</p>
@@ -83,7 +84,7 @@ export default function CharacterPage({ledger,appearance,onAppearanceChange}:{le
         </div>
       </section>
     </div>
-    <AvatarCreationPrototype/>
+    <AvatarCreationPrototype userId={userId} onSaved={onAvatarSaved}/>
     <section className="panel" style={{marginTop:20,padding:24}}>
       <h2 style={{fontSize:19,margin:'0 0 8px'}}>Personnaliser mon personnage</h2>
       <p style={{fontSize:13,opacity:.7,margin:'0 0 20px'}}>Tes choix sont sauvegardés avec ton compte et n'affectent pas tes XP.</p>
