@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
 
@@ -6,7 +7,7 @@ export function isAvatarPath(path:unknown):path is string {
  return typeof path==='string' && /^[0-9a-f-]{36}\/avatar\.webp$/.test(path)
 }
 
-export function AvatarImage({path,alt='Mon personnage',style}:{path?:string;alt?:string;style?:React.CSSProperties}) {
+export function AvatarImage({path,alt='Mon personnage',style}:{path?:string;alt?:string;style?:CSSProperties}) {
  const [url,setUrl]=useState<string|null>(null)
  useEffect(()=>{
   let active=true
