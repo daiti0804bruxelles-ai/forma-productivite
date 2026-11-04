@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { ChevronDown } from 'lucide-react'
+import type { CharacterAppearance } from './CharacterPage'
 import { SKILL_GROUPS } from './skillsCatalog'
 import { domainProgress, skillProgress, type XpLedger } from './xpEngine'
 
@@ -9,36 +12,50 @@ function ProgressBar({ current, required }: { current: number; required: number 
     style={barStyle}><div style={{ width: `${Math.min(100, current / required * 100)}%`, height: '100%', background: '#8b5cf6', borderRadius: 999 }}/></div>
 }
 
-export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
+export default function SkillsPage({ ledger, appearance, onOpenCharacter }: { ledger?: XpLedger; appearance?: CharacterAppearance; onOpenCharacter?: () => void }) {
+  const [expanded, setExpanded] = useState<string[]>([])
   const recentEvents = [...(ledger?.events ?? [])].reverse().slice(0, 12)
   return <section>
     <div className="page-intro"><div><div className="eyebrow">PROGRESSION PERSONNELLE</div>
       <h1>Mes compétences</h1><p>19 compétences réparties dans 6 domaines. Les actions accomplies font progresser tes compétences. Les pénalités réduisent ta progression, sans retirer les niveaux acquis.</p></div></div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(100%,320px),1fr))', gap: 18 }}>
+    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,340px),1fr))',gap:16,alignItems:'start'}}>
+      <section className="panel" style={{padding:20,display:'flex',flexDirection:'column',minHeight:480}}>
+        <div style={{textAlign:'center',fontSize:12,letterSpacing:1,opacity:.65,marginBottom:10}}>MON PERSONNAGE</div>
+        <div style={{flex:1,display:'grid',placeItems:'center',borderRadius:18,background:'rgba(120,120,128,.06)',padding:20}}>
+          <div style={{textAlign:'center'}}>
+            <div style={{fontSize:76,lineHeight:1.2}}>🧑‍🚀</div>
+            <p style={{fontSize:13,opacity:.7,marginTop:14}}>Avatar stylisé en préparation</p>
+            <p style={{fontSize:11,opacity:.55,marginTop:5}}>Portrait IA à partir d'une photo, après validation de la direction artistique</p>
+          </div>
+        </div>
+        {onOpenCharacter&&<button type="button" className="secondary-btn" style={{marginTop:12,width:'100%'}} onClick={onOpenCharacter}>Voir mon personnage{appearance?' et mes personnalisations':''}</button>}
+      </section>
+      <div style={{display:'grid',gap:10}}>
       {SKILL_GROUPS.map(group => {
         const domain = domainProgress(ledger, group.id)
-        const domainXp = domain.xp
-        return <section className="panel" key={group.id} style={{ padding: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10, marginBottom: 9 }}>
-            <h2 style={{ fontSize: 17, margin: 0 }}>{group.name}</h2><strong style={{ whiteSpace: 'nowrap', fontSize: 13 }}>Niv. {domain.level}</strong>
-          </div>
-          <div style={{ fontSize: 12, opacity: .7, marginBottom: 8 }}>{domainXp.toLocaleString('fr-FR')} XP · {domain.current.toLocaleString('fr-FR')} / {domain.required} XP</div>
-          <ProgressBar current={domain.current} required={domain.required}/>
-          <div style={{ display: 'grid', gap: 18, marginTop: 22 }}>
-            {group.skills.map(skill => {
-              const progress = skillProgress(ledger, skill.id)
-              const xp = progress.xp
+        const open=expanded.includes(group.id)
+        return <section className="panel" key={group.id} style={{padding:0,overflow:'hidden'}}>
+          <button type="button" aria-expanded={open} aria-controls={`skills-${group.id}`} onClick={()=>setExpanded(previous=>previous.includes(group.id)?previous.filter(id=>id!==group.id):[...previous,group.id])} style={{display:'block',width:'100%',border:0,background:'transparent',color:'inherit',textAlign:'left',padding:'18px 18px 16px',cursor:'pointer'}}>
+            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,marginBottom:12}}>
+              <strong style={{fontSize:14}}>{group.name}</strong>
+              <span style={{display:'flex',alignItems:'center',gap:10,fontSize:12,opacity:.8}}>Niv. {domain.level}<ChevronDown size={17} style={{transform:open?'rotate(180deg)':'none',transition:'transform .15s'}}/></span>
+            </div>
+            <ProgressBar current={domain.current} required={domain.required}/>
+          </button>
+          {open&&<div id={`skills-${group.id}`} style={{padding:'0 18px 20px',borderTop:'1px solid rgba(120,120,128,.12)'}}>
+            <p style={{fontSize:12,opacity:.7,margin:'14px 0 18px'}}>{domain.xp.toLocaleString('fr-FR')} XP dans ce domaine · {domain.current.toLocaleString('fr-FR')} / {domain.required} vers le prochain niveau</p>
+            <div style={{display:'grid',gap:18}}>{group.skills.map(skill=>{
+              const progress=skillProgress(ledger,skill.id)
               return <div key={skill.id}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6, fontSize: 13 }}>
-                  <span>{skill.name}</span><strong style={{ whiteSpace: 'nowrap' }}>Niv. {progress.level}</strong>
-                </div>
-                <div style={{ fontSize: 11, opacity: .7, marginBottom: 7 }}>{xp.toLocaleString('fr-FR')} XP · {progress.current} / {progress.required} XP</div>
+                <div style={{display:'flex',justifyContent:'space-between',gap:8,fontSize:13,marginBottom:6}}><span>{skill.name}</span><strong>Niv. {progress.level}</strong></div>
+                <div style={{fontSize:11,opacity:.7,marginBottom:7}}>{progress.xp.toLocaleString('fr-FR')} XP · {progress.current} / {progress.required} XP</div>
                 <ProgressBar current={progress.current} required={progress.required}/>
               </div>
-            })}
-          </div>
+            })}</div>
+          </div>}
         </section>
       })}
+      </div>
     </div>
     <section className="panel" style={{ marginTop: 20, padding: 20 }}>
       <h2 style={{ fontSize: 17, margin: '0 0 6px' }}>Historique XP</h2>
