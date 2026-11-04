@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, UserRound } from 'lucide-react'
 import { AvatarImage } from './avatarStorage'
-import type { CharacterAppearance } from './CharacterPage'
 import { SKILL_GROUPS } from './skillsCatalog'
 import { domainProgress, skillProgress, type XpLedger } from './xpEngine'
 
@@ -13,7 +12,7 @@ function ProgressBar({ current, required }: { current: number; required: number 
     style={barStyle}><div style={{ width: `${Math.min(100, current / required * 100)}%`, height: '100%', background: '#8b5cf6', borderRadius: 999 }}/></div>
 }
 
-export default function SkillsPage({ ledger, appearance, avatarPath, avatarUpdatedAt, onOpenCharacter }: { ledger?: XpLedger; appearance?: CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; onOpenCharacter?: () => void }) {
+export default function SkillsPage({ ledger, avatarPath, avatarUpdatedAt, onOpenCharacter }: { ledger?: XpLedger; avatarPath?:string; avatarUpdatedAt?:string; onOpenCharacter?: () => void }) {
   const [expanded, setExpanded] = useState<string[]>([])
   const recentEvents = [...(ledger?.events ?? [])].reverse().slice(0, 12)
   return <section>
