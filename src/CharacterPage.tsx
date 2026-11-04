@@ -1,4 +1,5 @@
 import { SKILL_GROUPS } from './skillsCatalog'
+import AvatarCreationPrototype from './AvatarCreationPrototype'
 import { domainProgress, type XpLedger } from './xpEngine'
 
 export type CharacterAppearance = { skin: 'light' | 'medium' | 'deep'; outfit: 'slate' | 'violet' | 'emerald'; hair: 'short' | 'long' | 'shaved' }
@@ -82,6 +83,7 @@ export default function CharacterPage({ledger,appearance,onAppearanceChange}:{le
         </div>
       </section>
     </div>
+    <AvatarCreationPrototype/>
     <section className="panel" style={{marginTop:20,padding:24}}>
       <h2 style={{fontSize:19,margin:'0 0 8px'}}>Personnaliser mon personnage</h2>
       <p style={{fontSize:13,opacity:.7,margin:'0 0 20px'}}>Tes choix sont sauvegardés avec ton compte et n'affectent pas tes XP.</p>
