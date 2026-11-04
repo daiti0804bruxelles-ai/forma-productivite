@@ -7,7 +7,7 @@ export function isAvatarPath(path:unknown):path is string {
  return typeof path==='string' && /^[0-9a-f-]{36}\/avatar\.webp$/.test(path)
 }
 
-export function AvatarImage({path,alt='Mon personnage',style}:{path?:string;alt?:string;style?:CSSProperties}) {
+export function AvatarImage({path,alt='Mon personnage',style,revision}:{path?:string;alt?:string;style?:CSSProperties;revision?:string}) {
  const [url,setUrl]=useState<string|null>(null)
  useEffect(()=>{
   let active=true
@@ -17,7 +17,7 @@ export function AvatarImage({path,alt='Mon personnage',style}:{path?:string;alt?
    if(active&&!error&&data?.signedUrl)setUrl(data.signedUrl)
   })
   return ()=>{active=false}
- },[path])
+ },[path,revision])
  if(!url)return null
  return <img src={url} alt={alt} style={{width:'100%',height:'100%',objectFit:'contain',...style}}/>
 }
