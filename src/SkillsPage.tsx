@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, UserRound } from 'lucide-react'
+import { AvatarImage } from './avatarStorage'
 import type { CharacterAppearance } from './CharacterPage'
 import { SKILL_GROUPS } from './skillsCatalog'
 import { domainProgress, skillProgress, type XpLedger } from './xpEngine'
@@ -12,7 +13,7 @@ function ProgressBar({ current, required }: { current: number; required: number 
     style={barStyle}><div style={{ width: `${Math.min(100, current / required * 100)}%`, height: '100%', background: '#8b5cf6', borderRadius: 999 }}/></div>
 }
 
-export default function SkillsPage({ ledger, appearance, onOpenCharacter }: { ledger?: XpLedger; appearance?: CharacterAppearance; onOpenCharacter?: () => void }) {
+export default function SkillsPage({ ledger, appearance, avatarPath, avatarUpdatedAt, onOpenCharacter }: { ledger?: XpLedger; appearance?: CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; onOpenCharacter?: () => void }) {
   const [expanded, setExpanded] = useState<string[]>([])
   const recentEvents = [...(ledger?.events ?? [])].reverse().slice(0, 12)
   return <section>
@@ -22,10 +23,10 @@ export default function SkillsPage({ ledger, appearance, onOpenCharacter }: { le
       <section className="panel" style={{padding:20,display:'flex',flexDirection:'column',minHeight:480}}>
         <div style={{textAlign:'center',fontSize:12,letterSpacing:1,opacity:.65,marginBottom:10}}>MON PERSONNAGE</div>
         <div style={{flex:1,display:'grid',placeItems:'center',borderRadius:18,background:'rgba(120,120,128,.06)',padding:20}}>
-          <div style={{textAlign:'center'}}>
-            <UserRound size={76} strokeWidth={1.1} style={{margin:"0 auto",opacity:.55}}/>
+          <div style={{textAlign:'center',width:'100%',height:'100%',display:'grid',placeItems:'center'}}>
+            {avatarPath?<AvatarImage path={avatarPath} revision={avatarUpdatedAt} alt="Mon aventurier Forma, de face" style={{maxHeight:430}}/>:<><UserRound size={76} strokeWidth={1.1} style={{margin:"0 auto",opacity:.55}}/>
             <p style={{fontSize:13,opacity:.7,marginTop:14}}>Avatar stylisé en préparation</p>
-            <p style={{fontSize:11,opacity:.55,marginTop:5}}>Portrait IA à partir d'une photo, après validation de la direction artistique</p>
+            <p style={{fontSize:11,opacity:.55,marginTop:5}}>Importe une image de ton personnage dans Perso</p></>}
           </div>
         </div>
         {onOpenCharacter&&<button type="button" className="secondary-btn" style={{marginTop:12,width:'100%'}} onClick={onOpenCharacter}>Voir mon personnage{appearance?' et mes personnalisations':''}</button>}
