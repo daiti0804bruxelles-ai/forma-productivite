@@ -25,7 +25,7 @@ export default function SkillsPage({ ledger, avatarPath, avatarUpdatedAt, onOpen
           <div style={{textAlign:'center',width:'100%',height:450,display:'grid',placeItems:'center',color:'#e2e8f0'}}>
             {avatarPath?<AvatarImage path={avatarPath} revision={avatarUpdatedAt} alt="Mon aventurier Forma, de face" style={{height:450,width:"100%",objectFit:"contain",objectPosition:"center bottom"}}/>:<><UserRound size={76} strokeWidth={1.1} style={{margin:"0 auto",opacity:.55}}/>
             <p style={{fontSize:13,opacity:.7,marginTop:14}}>Avatar stylisé en préparation</p>
-            <p style={{fontSize:11,opacity:.55,marginTop:5}}>Importe une image de ton personnage dans Perso</p></>}
+            <p style={{fontSize:11,opacity:.55,marginTop:5}}>Les compétences progressent avec tes actions</p></>}
           </div>
         </div>
         {onOpenCharacter&&<button type="button" className="secondary-btn" style={{margin:12,width:'calc(100% - 24px)'}} onClick={onOpenCharacter}>Voir mon personnage</button>}
