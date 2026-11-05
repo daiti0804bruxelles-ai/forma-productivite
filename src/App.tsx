@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Users, Flame, Home, LayoutGrid, Menu, MoreHorizontal, Plus, Repeat2, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo } from 'lucide-react'
+import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Users, Flame, Home, LayoutGrid, Menu, MoreHorizontal, GripVertical, ChevronDown, Plus, Repeat2, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
@@ -221,6 +221,8 @@ useEffect(()=>{
  const [taskFilter,setTaskFilter]=useState<'À faire'|'Terminées'>('À faire')
  const [expandedTaskId,setExpandedTaskId]=useState<string|null>(null)
  const [subtaskDraft,setSubtaskDraft]=useState('')
+ const [draggedTaskId,setDraggedTaskId]=useState<string|null>(null)
+ const taskDragRef=useRef<{id:string;target:string|null}|null>(null)
  const [formTitle,setFormTitle]=useState('')
  const [formSkillIds,setFormSkillIds]=useState<SkillId[]>([])
  const [formCategory,setFormCategory]=useState('Travail')
@@ -404,16 +406,31 @@ useEffect(() => {
   }finally{setRestoringBackup(false)}
  }
  const displayedTasks=useMemo(()=>data.tasks.filter(t=>taskFilter==='Terminées'?t.done:!t.done).sort((a,b)=>{const order=data.taskOrder||data.tasks.map(t=>t.id);return order.indexOf(a.id)-order.indexOf(b.id)}),[data.tasks,data.taskOrder,taskFilter])
- const moveTask=(taskId:string,direction:-1|1)=>setData(prev=>{
-   const order=(prev.taskOrder||prev.tasks.map(t=>t.id)).filter(id=>prev.tasks.some(t=>t.id===id))
-   const visible=order.filter(id=>prev.tasks.some(t=>t.id===id&&(taskFilter==='Terminées'?t.done:!t.done)))
-   const index=visible.indexOf(taskId),other=visible[index+direction]
-   if(index<0||!other)return prev
-   const from=order.indexOf(taskId),to=order.indexOf(other)
-   ;[order[from],order[to]]=[order[to],order[from]]
-   return {...prev,taskOrder:order}
+ const reorderTask=(sourceId:string,targetId:string)=>setData(prev=>{
+  const order=[...(prev.taskOrder||prev.tasks.map(t=>t.id)).filter(id=>prev.tasks.some(t=>t.id===id))]
+  const from=order.indexOf(sourceId),to=order.indexOf(targetId)
+  if(from<0||to<0||from===to)return prev
+  order.splice(from,1);order.splice(to,0,sourceId)
+  return {...prev,taskOrder:order}
  })
- const addSubtask=(taskId:string)=>{const title=subtaskDraft.trim();if(!title)return;setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,subtasks:[...(t.subtasks||[]),{id:id(),title,done:false}]}:t)}));setSubtaskDraft('')}
+ const beginTaskDrag=(event:React.PointerEvent<HTMLButtonElement>,taskId:string)=>{
+  if(event.button!==0)return
+  event.currentTarget.setPointerCapture(event.pointerId)
+  taskDragRef.current={id:taskId,target:null}
+  setDraggedTaskId(taskId)
+ }
+ const updateTaskDrag=(event:React.PointerEvent<HTMLButtonElement>)=>{
+  if(!taskDragRef.current)return
+  const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-task-row]')?.getAttribute('data-task-row')||null
+  taskDragRef.current.target=target
+ }
+ const finishTaskDrag=(event:React.PointerEvent<HTMLButtonElement>)=>{
+  const drag=taskDragRef.current
+  if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId)
+  taskDragRef.current=null;setDraggedTaskId(null)
+  if(drag?.target&&drag.target!==drag.id)reorderTask(drag.id,drag.target)
+ }
+  const addSubtask=(taskId:string)=>{const title=subtaskDraft.trim();if(!title)return;setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,subtasks:[...(t.subtasks||[]),{id:id(),title,done:false}]}:t)}));setSubtaskDraft('')}
  const toggleSubtask=(taskId:string,subtaskId:string)=>setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,subtasks:(t.subtasks||[]).map(st=>st.id===subtaskId?{...st,done:!st.done}:st)}:t)}))
  const removeSubtask=(taskId:string,subtaskId:string)=>setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,subtasks:(t.subtasks||[]).filter(st=>st.id!==subtaskId)}:t)}))
  const monthDays=useMemo(()=>{const first=new Date(visibleMonth.getFullYear(),visibleMonth.getMonth(),1);const offset=(first.getDay()+6)%7;return Array.from({length:42},(_,i)=>new Date(first.getFullYear(),first.getMonth(),1-offset+i))},[visibleMonth])
@@ -455,11 +472,11 @@ useEffect(() => {
   {page==='tasks'&&<><section className="page-intro" style={{marginBottom:18}}><div><div className="eyebrow"><span className="eyebrow-line"/> AVANCER SANS SE DISPERSER</div><h1>Mes tâches</h1><p>Une chose à la fois.</p></div><button className="primary-btn" onClick={()=>openAdd('task')}><Plus size={18}/> Nouvelle tâche</button></section>
 <section className="panel tasks-panel" style={{padding:'clamp(14px,3vw,26px)'}}>
 <div className="list-toolbar" style={{marginBottom:12,gap:12,flexWrap:'wrap'}}><div className="filter-tabs" role="tablist" aria-label="État des tâches">{(['À faire','Terminées'] as const).map(f=><button type="button" role="tab" aria-selected={taskFilter===f} key={f} className={taskFilter===f?'selected':''} onClick={()=>setTaskFilter(f)}>{f}</button>)}</div><span className="count-label">{displayedTasks.length} tâche{displayedTasks.length!==1?'s':''} {taskFilter==='À faire'?'restante'+(displayedTasks.length!==1?'s':''):'terminée'+(displayedTasks.length!==1?'s':'')}</span></div>
-<div style={{display:'grid',gap:6}}>{displayedTasks.map((t,index)=><div key={t.id} style={{padding:'12px 4px',borderBottom:'1px solid rgba(150,155,180,.14)',minWidth:0}}><div style={{display:'flex',alignItems:'center',gap:12,minWidth:0}}>
-<button className={`check-btn ${t.done?'checked':''}`} style={{flexShrink:0}} onClick={()=>toggleTask(t.id)} aria-label={`${t.done?'Rouvrir':'Terminer'} ${t.title}`}>{t.done&&<Check size={16}/>}</button>
+<div style={{display:'grid',gap:6}}>{displayedTasks.map(t=><div key={t.id} data-task-row={t.id} style={{padding:'12px 4px',borderBottom:'1px solid rgba(150,155,180,.14)',minWidth:0,opacity:draggedTaskId===t.id?.5:1,transition:'opacity .15s ease'}}><div style={{display:'flex',alignItems:'center',gap:12,minWidth:0}}>
+<button type="button" aria-label={`Maintenir et déplacer ${t.title}`} title="Maintenir pour réorganiser" onPointerDown={e=>beginTaskDrag(e,t.id)} onPointerMove={updateTaskDrag} onPointerUp={finishTaskDrag} onPointerCancel={()=>{taskDragRef.current=null;setDraggedTaskId(null)}} style={{touchAction:'none',cursor:'grab',padding:'10px 4px',display:'flex',alignItems:'center',justifyContent:'center',background:'transparent',border:0,color:'#a6a1ba',flexShrink:0}}><GripVertical size={21}/></button><button className={`check-btn ${t.done?'checked':''}`} style={{flexShrink:0}} onClick={()=>toggleTask(t.id)} aria-label={`${t.done?'Rouvrir':'Terminer'} ${t.title}`}>{t.done&&<Check size={16}/>}</button>
 <div className="item-copy" style={{flex:'1 1 auto',minWidth:0,display:'grid',gap:4}}><strong className={t.done?'completed':''} style={{overflowWrap:'anywhere',lineHeight:1.35}}>{t.title}</strong><small style={{opacity:.68}}>{t.date===todayKey()?'Aujourd’hui':frDate(makeDate(t.date),{day:'numeric',month:'short'})}{t.recurring?' · ↻ Quotidienne':''}</small></div>
-<details style={{position:'relative',flexShrink:0}}><summary aria-label={`Options pour ${t.title}`} title="Options" style={{cursor:'pointer',listStyle:'none',padding:'8px',borderRadius:10,display:'flex',alignItems:'center'}}><MoreHorizontal size={21}/></summary><div style={{position:'absolute',right:0,top:'100%',zIndex:5,background:'#202335',border:'1px solid #42445a',borderRadius:12,padding:6,boxShadow:'0 12px 25px #0005',minWidth:150,display:'grid',gap:3}}><button type="button" disabled={index===0} onClick={()=>moveTask(t.id,-1)} style={{display:'flex',alignItems:'center',gap:9,padding:10,border:0,background:'transparent',color:'inherit',textAlign:'left',cursor:'pointer',opacity:index===0?.4:1}}>↑ Monter</button><button type="button" disabled={index===displayedTasks.length-1} onClick={()=>moveTask(t.id,1)} style={{display:'flex',alignItems:'center',gap:9,padding:10,border:0,background:'transparent',color:'inherit',textAlign:'left',cursor:'pointer',opacity:index===displayedTasks.length-1?.4:1}}>↓ Descendre</button><button type="button" onClick={()=>{setExpandedTaskId(expandedTaskId===t.id?null:t.id);setSubtaskDraft('')}} style={{display:'flex',alignItems:'center',gap:9,padding:10,border:0,background:'transparent',color:'inherit',textAlign:'left',cursor:'pointer'}}>Sous-tâches</button><button type="button" onClick={()=>openEdit('task',t)} style={{display:'flex',alignItems:'center',gap:9,padding:10,border:0,background:'transparent',color:'inherit',textAlign:'left',cursor:'pointer'}}><Pencil size={16}/> Modifier</button><button type="button" onClick={()=>deleteItem('task',t.id)} style={{display:'flex',alignItems:'center',gap:9,padding:10,border:0,background:'transparent',color:'#fca5a5',textAlign:'left',cursor:'pointer'}}><Trash2 size={16}/> Supprimer</button></div></details>
-</div>{expandedTaskId===t.id&&<div style={{margin:'12px 0 2px 44px',padding:'12px',borderRadius:12,background:'rgba(120,120,140,.08)',display:'grid',gap:10}}><strong style={{fontSize:13}}>Sous-tâches · {(t.subtasks||[]).filter(st=>st.done).length}/{(t.subtasks||[]).length}</strong>{(t.subtasks||[]).map(st=><div key={st.id} style={{display:'flex',alignItems:'center',gap:9}}><input type="checkbox" checked={st.done} onChange={()=>toggleSubtask(t.id,st.id)} aria-label={st.title}/><span style={{flex:1,fontSize:13,textDecoration:st.done?'line-through':'none',opacity:st.done?.6:1,overflowWrap:'anywhere'}}>{st.title}</span><button type="button" className="small-icon" aria-label={`Supprimer la sous-tâche ${st.title}`} onClick={()=>removeSubtask(t.id,st.id)}><Trash2 size={15}/></button></div>)}<form onSubmit={e=>{e.preventDefault();addSubtask(t.id)}} style={{display:'flex',gap:8,minWidth:0}}><input value={subtaskDraft} onChange={e=>setSubtaskDraft(e.target.value)} placeholder="Ajouter une étape…" aria-label="Nouvelle sous-tâche" maxLength={200} style={{flex:1,minWidth:0,padding:'9px 10px',borderRadius:8,background:'transparent',color:'inherit',border:'1px solid rgba(150,155,180,.3)'}}/><button type="submit" disabled={!subtaskDraft.trim()} className="secondary-btn" style={{padding:'8px 12px'}}>Ajouter</button></form></div>}</div>)}{displayedTasks.length===0&&<div style={{padding:'30px 12px',textAlign:'center',opacity:.75}}>{taskFilter==='À faire'?'Tout est fait pour le moment.':'Aucune tâche terminée pour le moment.'}</div>}</div></section></>}
+<button type="button" aria-label={`Afficher les sous-tâches de ${t.title}`} aria-expanded={expandedTaskId===t.id} onClick={()=>{setExpandedTaskId(expandedTaskId===t.id?null:t.id);setSubtaskDraft('')}} style={{border:0,background:'transparent',color:'#b9aed9',display:'flex',alignItems:'center',gap:5,padding:'9px 5px',cursor:'pointer',flexShrink:0,fontSize:12}}>{(t.subtasks||[]).length>0&&<span>{(t.subtasks||[]).filter(st=>st.done).length}/{(t.subtasks||[]).length}</span>}<ChevronDown size={18} style={{transform:expandedTaskId===t.id?'rotate(180deg)':'none',transition:'transform .2s'}}/></button><details style={{position:'relative',flexShrink:0}}><summary aria-label={`Options pour ${t.title}`} title="Options" style={{cursor:'pointer',listStyle:'none',padding:'8px',borderRadius:10,display:'flex',alignItems:'center'}}><MoreHorizontal size={21}/></summary><div style={{position:'absolute',right:0,top:'100%',zIndex:5,background:'#202335',border:'1px solid #42445a',borderRadius:12,padding:6,boxShadow:'0 12px 25px #0005',minWidth:150,display:'grid',gap:3}}><button type="button" onClick={()=>openEdit('task',t)} style={{display:'flex',alignItems:'center',gap:9,padding:10,border:0,background:'transparent',color:'inherit',textAlign:'left',cursor:'pointer'}}><Pencil size={16}/> Modifier</button><button type="button" onClick={()=>deleteItem('task',t.id)} style={{display:'flex',alignItems:'center',gap:9,padding:10,border:0,background:'transparent',color:'#fca5a5',textAlign:'left',cursor:'pointer'}}><Trash2 size={16}/> Supprimer</button></div></details>
+</div>{expandedTaskId===t.id&&<div style={{margin:'8px 0 4px 38px',padding:'12px 14px',borderRadius:14,background:'rgba(120,120,140,.07)',display:'grid',gap:10,border:'1px solid rgba(150,155,180,.10)'}}><strong style={{fontSize:13}}>Sous-tâches · {(t.subtasks||[]).filter(st=>st.done).length}/{(t.subtasks||[]).length}</strong>{(t.subtasks||[]).map(st=><div key={st.id} style={{display:'flex',alignItems:'center',gap:9}}><input type="checkbox" checked={st.done} onChange={()=>toggleSubtask(t.id,st.id)} aria-label={st.title}/><span style={{flex:1,fontSize:13,textDecoration:st.done?'line-through':'none',opacity:st.done?.6:1,overflowWrap:'anywhere'}}>{st.title}</span><button type="button" style={{background:'transparent',border:0,color:'#a8a5b8',padding:8,cursor:'pointer'}} aria-label={`Supprimer la sous-tâche ${st.title}`} onClick={()=>removeSubtask(t.id,st.id)}><Trash2 size={15}/></button></div>)}<form onSubmit={e=>{e.preventDefault();addSubtask(t.id)}} style={{display:'flex',gap:8,minWidth:0}}><input value={subtaskDraft} onChange={e=>setSubtaskDraft(e.target.value)} placeholder="Ajouter une étape…" aria-label="Nouvelle sous-tâche" maxLength={200} style={{flex:1,minWidth:0,padding:'9px 10px',borderRadius:8,background:'transparent',color:'inherit',border:'1px solid rgba(150,155,180,.3)'}}/><button type="submit" disabled={!subtaskDraft.trim()} className="secondary-btn" style={{padding:'8px 12px'}}>Ajouter</button></form></div>}</div>)}{displayedTasks.length===0&&<div style={{padding:'30px 12px',textAlign:'center',opacity:.75}}>{taskFilter==='À faire'?'Tout est fait pour le moment.':'Aucune tâche terminée pour le moment.'}</div>}</div></section></>}
    {page==='goals'&&<>
    <div role="tablist" aria-label="Type d'objectifs" style={{display:'flex',gap:8,marginBottom:20,flexWrap:'wrap'}}>
     <button type="button" role="tab" aria-selected={goalsTab==='personal'} className={goalsTab==='personal'?'primary-btn':'secondary-btn'} onClick={()=>setGoalsTab('personal')}><CircleCheck size={17}/> Personnels</button>
