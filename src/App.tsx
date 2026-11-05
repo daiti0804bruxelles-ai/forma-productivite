@@ -487,15 +487,18 @@ useEffect(() => {
    {page==='dashboard'&&<div style={{display:'grid',gap:16,maxWidth:1120,margin:'0 auto'}}>
 <section className="page-intro" style={{marginBottom:0,paddingBottom:0}}><div><h1>Aujourd’hui</h1><p>{frDate(new Date(),{weekday:'long',day:'numeric',month:'long'})}</p></div></section>
 <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:12}}>
-<section className="panel" aria-label="Série de jours actifs" style={{padding:'16px 18px',minWidth:0}}>
-<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}><span style={{fontSize:13,opacity:.75}}>Ma régularité</span><Flame size={22} color="#fb923c"/></div>
-<div style={{fontSize:'clamp(27px,4vw,40px)',fontWeight:800,margin:'8px 0 2px',fontVariantNumeric:'tabular-nums'}}>{activityStreak} <span style={{fontSize:13,fontWeight:500,opacity:.7}}>jour{activityStreak!==1?'s':''}</span></div>
-<small style={{opacity:.7}}>Au moins une action par jour</small></section>
-<section className="panel" aria-label="Progression des tâches du jour" style={{padding:'16px 18px',minWidth:0}}>
-<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}><span style={{fontSize:13,opacity:.75}}>Ma journée</span><CircleCheck size={21} color="#a78bfa"/></div>
-<div style={{fontSize:'clamp(27px,4vw,40px)',fontWeight:800,margin:'8px 0 8px',fontVariantNumeric:'tabular-nums'}}>{taskProgress}%</div>
-<div className="meter" style={{marginBottom:6}}><div style={{width:`${taskProgress}%`}}/></div>
-<small style={{opacity:.7}}>{todaysTasks.length?`${doneTasks} tâche${doneTasks!==1?'s':''} sur ${todaysTasks.length}`:'Aucune tâche prévue'}</small></section></div>
+<section className="panel" aria-label={`Progression des tâches : ${taskProgress}%`} style={{padding:'22px 10px 20px',minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:14,borderRadius:22}}>
+<div style={{width:'clamp(112px,31vw,172px)',aspectRatio:'1',borderRadius:'50%',display:'grid',placeItems:'center',background:`conic-gradient(#a78bfa ${taskProgress}%,rgba(158,153,182,.12) 0)`,padding:9}}>
+<div style={{width:'100%',height:'100%',borderRadius:'50%',background:'#151722',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:3}}>
+<strong style={{fontSize:'clamp(25px,5vw,39px)',lineHeight:1.1,fontVariantNumeric:'tabular-nums'}}>{taskProgress}%</strong>
+<span style={{fontSize:10,letterSpacing:'.08em',color:'#aaa4c4',textTransform:'uppercase'}}>Aujourd’hui</span>
+</div></div>
+<span style={{fontSize:13,color:'#aaa4c4',textAlign:'center'}}>{todaysTasks.length?(`${todaysTasks.length-doneTasks} restante${todaysTasks.length-doneTasks!==1?'s':''}`):'Aucune tâche'}</span>
+</section>
+<section className="panel" aria-label={`Série de ${activityStreak} jours actifs`} style={{padding:'22px 10px 20px',minWidth:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:12,borderRadius:22}}>
+<div style={{width:70,height:70,borderRadius:22,background:'rgba(251,146,60,.10)',display:'grid',placeItems:'center'}}><Flame size={38} strokeWidth={2.2} color="#fb923c"/></div>
+<div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:3}}><strong style={{fontSize:'clamp(32px,6vw,46px)',lineHeight:1.1,fontVariantNumeric:'tabular-nums'}}>{activityStreak}</strong><span style={{fontSize:13,color:'#aaa4c4',textAlign:'center'}}>jour{activityStreak!==1?'s':''} de série</span></div>
+</section></div>
 <section className="panel agenda-panel" style={{margin:0,minHeight:0}}>
 <div className="panel-heading"><div><h2>Programme du jour</h2><p>Les activités de ton calendrier</p></div><button className="text-action" onClick={()=>go('calendar')}>Calendrier <ArrowRight size={16}/></button></div>
 <div className="agenda-row" style={{maxHeight:'min(48vh,440px)',overflowY:'auto'}}>{todayEvents.length?todayEvents.map(ev=><div className="agenda-item" key={ev.id}><span className="agenda-time">{ev.time}</span><span className={`agenda-stripe ${categoryClass[ev.category]||'lavender'}`}/><div><strong>{ev.title}</strong><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}</small></div></div>):<Empty message="Aucune activité prévue aujourd’hui. Planifie ta journée dans le calendrier."/>}</div>
