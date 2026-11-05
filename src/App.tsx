@@ -61,7 +61,6 @@ const nav:{id:Page;label:string;icon:LucideIcon}[]=[{id:'dashboard',label:'Table
 const categoryIcon:Record<string,LucideIcon>={Personnel:Sparkles,Travail:BriefcaseBusiness,Sport:Dumbbell,Apprentissage:BookOpen}
 const categoryClass:Record<string,string>={Personnel:'lavender',Travail:'blue',Sport:'peach',Apprentissage:'mint'}
 const periods:{name:Period;icon:LucideIcon;time:string}[]=[{name:'Matin',icon:Sunrise,time:'06:00 — 12:00'},{name:'Après-midi',icon:Sun,time:'12:00 — 18:00'},{name:'Soir',icon:Moon,time:'18:00 — 00:00'}]
-function IconBadge({category}:{category:string}){const Icon=categoryIcon[category]||Sparkles;return <span className={`category-icon ${categoryClass[category]||'lavender'}`}><Icon size={17}/></span>}
 function Empty({message}:{message:string}){return <div className="empty">{message}</div>}
 function AuthScreen() {
   const [email, setEmail] = useState('')
