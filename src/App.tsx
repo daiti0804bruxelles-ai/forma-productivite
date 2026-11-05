@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Users, Flame, Home, LayoutGrid, Menu, MoreHorizontal, GripVertical, ChevronDown, Plus, Repeat2, Settings, Trash2, X, Pencil, Download, Upload, Sunrise, Sun, Moon, ListTodo } from 'lucide-react'
+import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Users, Flame, Home, LayoutGrid, Menu, MoreHorizontal, GripVertical, ChevronDown, Plus, Repeat2, Settings, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
