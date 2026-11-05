@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, UserRound } from 'lucide-react'
-import { AvatarImage } from './avatarStorage'
+import { ChevronDown } from 'lucide-react'
 import { SKILL_GROUPS } from './skillsCatalog'
 import { domainProgress, skillProgress, type XpLedger } from './xpEngine'
 
@@ -12,24 +11,13 @@ function ProgressBar({ current, required }: { current: number; required: number 
     style={barStyle}><div style={{ width: `${Math.min(100, current / required * 100)}%`, height: '100%', background: '#8b5cf6', borderRadius: 999 }}/></div>
 }
 
-export default function SkillsPage({ ledger, avatarPath, avatarUpdatedAt, onOpenCharacter }: { ledger?: XpLedger; avatarPath?:string; avatarUpdatedAt?:string; onOpenCharacter?: () => void }) {
+export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
   const [expanded, setExpanded] = useState<string[]>([])
   const recentEvents = [...(ledger?.events ?? [])].reverse().slice(0, 12)
   return <section>
     <div className="page-intro"><div><div className="eyebrow">PROGRESSION PERSONNELLE</div>
       <h1>Mes compétences</h1><p>19 compétences réparties dans 6 domaines. Les actions accomplies font progresser tes compétences. Les pénalités réduisent ta progression, sans retirer les niveaux acquis.</p></div></div>
-    <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(min(100%,370px),1fr))',gap:16,alignItems:'start'}}>
-      <section className="panel" style={{padding:0,display:'flex',flexDirection:'column',minHeight:540,overflow:'hidden'}}>
-        <div style={{textAlign:"center",fontSize:12,letterSpacing:1,opacity:.65,padding:"16px 12px"}}>MON PERSONNAGE</div>
-        <div style={{flex:1,display:'grid',placeItems:'center',background:'radial-gradient(ellipse at 50% 80%,rgba(251,146,60,.18),transparent 55%),linear-gradient(160deg,#25334a,#101827)',minHeight:450,overflow:'hidden'}}>
-          <div style={{textAlign:'center',width:'100%',height:450,display:'grid',placeItems:'center',color:'#e2e8f0'}}>
-            {avatarPath?<AvatarImage path={avatarPath} revision={avatarUpdatedAt} alt="Mon aventurier Forma, de face" style={{height:450,width:"100%",objectFit:"contain",objectPosition:"center bottom"}}/>:<><UserRound size={76} strokeWidth={1.1} style={{margin:"0 auto",opacity:.55}}/>
-            <p style={{fontSize:13,opacity:.7,marginTop:14}}>Avatar stylisé en préparation</p>
-            <p style={{fontSize:11,opacity:.55,marginTop:5}}>Les compétences progressent avec tes actions</p></>}
-          </div>
-        </div>
-        {onOpenCharacter&&<button type="button" className="secondary-btn" style={{margin:12,width:'calc(100% - 24px)'}} onClick={onOpenCharacter}>Voir mon personnage</button>}
-      </section>
+    <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr)',gap:16,alignItems:'start'}}>
       <div style={{display:'grid',gap:10}}>
       {SKILL_GROUPS.map(group => {
         const domain = domainProgress(ledger, group.id)
