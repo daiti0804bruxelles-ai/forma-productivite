@@ -442,6 +442,10 @@ useEffect(() => {
  const [quickAdd,setQuickAdd]=useState<QuickAddType|null>(null)
  const [appearanceOpen,setAppearanceOpen]=useState(false)
  const [xpFlash,setXpFlash]=useState<{id:string;amount:number}|null>(null)
+ const [showDone,setShowDone]=useState(false)
+ const [leaving,setLeaving]=useState<string[]>([])
+ const [clock,setClock]=useState(()=>new Date())
+ useEffect(()=>{const timer=window.setInterval(()=>setClock(new Date()),60000);return()=>window.clearInterval(timer)},[])
  const [cachedAppearance]=useState(readCachedAppearance)
  const appearance=dataLoading?cachedAppearance:(data.appearance??cachedAppearance)
  useAppearance(appearance)
@@ -459,15 +463,18 @@ useEffect(() => {
   document.addEventListener('keydown',onKey)
   return()=>document.removeEventListener('keydown',onKey)
  },[anyOverlayOpen,page])
+ const keepBriefly=(itemId:string)=>{setLeaving(prev=>[...prev,itemId]);window.setTimeout(()=>setLeaving(prev=>prev.filter(x=>x!==itemId)),1300)}
  const earned=(key:string)=>Boolean(data.xpLedger?.events.some(event=>event.key===key))
  const checkHabit=(h:Habit)=>{
   const done=completed.includes(h.id)
   toggleHabit(h.id)
+  if(!done)keepBriefly(h.id)
   if(!done&&h.skillIds?.length&&!earned(`habit:${h.id}:${todayKey()}`))setXpFlash({id:h.id,amount:10})
  }
  const checkTask=(t:Task)=>{
   const key=t.recurring?`task:${t.id}:${t.date}`:`task:${t.id}`
   toggleTask(t.id)
+  if(!t.done)keepBriefly(t.id)
   if(!t.done&&t.skillIds?.length&&!earned(key))setXpFlash({id:t.id,amount:t.recurring?3:10})
  }
  const tomorrowKey=dateKey(addDays(new Date(),1))
@@ -483,6 +490,12 @@ useEffect(() => {
  const taskOrder=data.taskOrder||data.tasks.map(t=>t.id)
  const orderedTodayTasks=[...todaysTasks].sort((a,b)=>taskOrder.indexOf(a.id)-taskOrder.indexOf(b.id))
  const sortedHabits=periods.flatMap(p=>data.habits.filter(h=>h.period===p.name))
+ const nowTime=`${String(clock.getHours()).padStart(2,'0')}:${String(clock.getMinutes()).padStart(2,'0')}`
+ const eventPast=(ev:Event)=>(ev.endTime||ev.time)<=nowTime
+ const visibleEvents=showDone?todayEvents:todayEvents.filter(ev=>!eventPast(ev))
+ const visibleTasks=showDone?orderedTodayTasks:orderedTodayTasks.filter(t=>!t.done||leaving.includes(t.id))
+ const visibleHabits=showDone?sortedHabits:sortedHabits.filter(h=>!completed.includes(h.id)||leaving.includes(h.id))
+ const hiddenCount=todayEvents.filter(eventPast).length+orderedTodayTasks.filter(t=>t.done).length+sortedHabits.filter(h=>completed.includes(h.id)).length
  const dayDone=doneTasks+habitsDone
  const dayTotal=todaysTasks.length+data.habits.length
  const dayProgress=dayTotal?Math.round(dayDone/dayTotal*100):0
@@ -526,28 +539,29 @@ useEffect(() => {
      </div>}
      <section className="list-section today-events">
       <div className="section-head"><h2>Programme</h2><button type="button" className="text-action" onClick={()=>go('calendar')}>Calendrier <ArrowRight size={15}/></button></div>
-      <div className="list-card">{todayEvents.length?todayEvents.map(ev=><div className="event-row" key={ev.id}><span className="event-time">{ev.time}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span>{ev.title}</span><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}</small></div></div>):<Empty message="Rien de prévu aujourd’hui."/>}</div>
+      <div className="list-card">{visibleEvents.length?visibleEvents.map(ev=><div className={`event-row ${eventPast(ev)?'is-past':''}`} key={ev.id}><span className="event-time">{ev.time}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span>{ev.title}</span><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}</small></div></div>):<Empty message={todayEvents.length?'Plus rien de prévu aujourd’hui.':'Rien de prévu aujourd’hui.'}/>}</div>
      </section>
      <section className="list-section today-tasks">
       <div className="section-head"><h2>Tâches</h2><button type="button" className="text-action" onClick={()=>go('tasks')}>Tout voir <ArrowRight size={15}/></button></div>
-      <div className="list-card">{orderedTodayTasks.length?orderedTodayTasks.map(t=><SwipeRow key={t.id} done={t.done} onComplete={()=>checkTask(t)} onDelete={()=>deleteItem('task',t.id)}>
+      <div className="list-card">{visibleTasks.length?visibleTasks.map(t=><SwipeRow key={t.id} className={leaving.includes(t.id)&&!showDone?'is-leaving':''} done={t.done} onComplete={()=>checkTask(t)} onDelete={()=>deleteItem('task',t.id)}>
        <div className="check-row">
         <RoundCheck done={t.done} label={`${t.done?'Rouvrir':'Terminer'} ${t.title}`} onToggle={()=>checkTask(t)}/>
         <div className="row-copy"><span className={t.done?'is-done':''}>{t.title}</span><small>{t.category}{t.recurring?' · chaque jour':''}{subtaskCount(t)?` · ${subtaskCount(t)}`:''}</small></div>
         {xpFlash?.id===t.id&&<span className="xp-flash">+{xpFlash.amount} XP</span>}
        </div>
-      </SwipeRow>):<Empty message="Aucune tâche pour aujourd’hui."/>}</div>
+      </SwipeRow>):<Empty message={orderedTodayTasks.length?'Toutes tes tâches du jour sont faites.':'Aucune tâche pour aujourd’hui.'}/>}</div>
      </section>
      <section className="list-section today-habits">
       <div className="section-head"><h2>Habitudes</h2><button type="button" className="text-action" onClick={()=>go('habits')}>Gérer <ArrowRight size={15}/></button></div>
-      <div className="list-card">{sortedHabits.length?sortedHabits.map(h=>{const done=completed.includes(h.id);return <SwipeRow key={h.id} done={done} completeLabel="Valider" onComplete={()=>checkHabit(h)}>
+      <div className="list-card">{visibleHabits.length?visibleHabits.map(h=>{const done=completed.includes(h.id);return <SwipeRow key={h.id} className={leaving.includes(h.id)&&!showDone?'is-leaving':''} done={done} completeLabel="Valider" onComplete={()=>checkHabit(h)}>
        <div className="check-row">
         <RoundCheck done={done} label={`${done?'Décocher':'Cocher'} ${h.title}`} onToggle={()=>checkHabit(h)}/>
         <div className="row-copy"><span className={done?'is-done':''}>{h.title}</span><small>{h.period} · {h.category}</small></div>
         {xpFlash?.id===h.id&&<span className="xp-flash">+{xpFlash.amount} XP</span>}
        </div>
-      </SwipeRow>}):<Empty message="Aucune habitude pour le moment."/>}</div>
+      </SwipeRow>}):<Empty message={sortedHabits.length?'Toutes tes habitudes du jour sont faites.':'Aucune habitude pour le moment.'}/>}</div>
      </section>
+     {(hiddenCount>0||showDone)&&<button type="button" className="text-action show-done" aria-pressed={showDone} onClick={()=>setShowDone(v=>!v)}>{showDone?'Masquer les éléments terminés':`Afficher les éléments terminés (${hiddenCount})`}</button>}
     </div>}
 
     {page==='habits'&&<>

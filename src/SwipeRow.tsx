@@ -65,7 +65,7 @@ export default function SwipeRow({ children, onComplete, onDelete, completeLabel
   const run = (action?: () => void) => { close(); action?.() }
 
   return <div className={`swipe-row ${className}`}>
-    {max > 0 && <div className="swipe-actions" aria-hidden={!isOpen} style={{ width: max }}>
+    {max > 0 && <div className="swipe-actions" aria-hidden={!isOpen} style={{ width: max, visibility: offset === 0 ? 'hidden' : undefined }}>
       {onComplete && <button type="button" className="swipe-complete" tabIndex={isOpen ? 0 : -1} onClick={() => run(onComplete)}>
         {done ? <RotateCcw size={18} /> : <Check size={19} strokeWidth={2.6} />}<span>{done ? 'Rouvrir' : completeLabel}</span>
       </button>}

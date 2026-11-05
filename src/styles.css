@@ -190,7 +190,7 @@ svg { flex-shrink: 0; }
 .nav-item:hover:not(.active) { background: var(--surface-2); color: var(--text); }
 .nav-item.active { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
 .main-wrap { margin-left: 236px; min-width: 0; }
-.topbar { position: sticky; top: 0; z-index: 15; height: 64px; display: flex; align-items: center; gap: 12px; padding: 0 clamp(20px, 4vw, 48px); background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+.topbar { position: sticky; top: 0; z-index: 15; height: 64px; display: flex; align-items: center; gap: 12px; padding: 0 clamp(20px, 4vw, 48px); background: var(--bg); border-bottom: 1px solid transparent; }
 .topbar-title { font-size: .95rem; font-weight: 600; }
 .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
 .today-pill { color: var(--text-2); font-size: .85rem; font-weight: 500; text-transform: capitalize; }
@@ -266,6 +266,10 @@ svg { flex-shrink: 0; }
 .swipe-delete { background: var(--danger); color: #FFFFFF; }
 .swipe-front { position: relative; z-index: 1; touch-action: pan-y; background: var(--surface); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .swipe-front.is-dragging { transition: none; }
+.swipe-row.is-leaving { animation: row-leave 1.3s ease forwards; }
+@keyframes row-leave { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+.event-row.is-past .row-copy > span { color: var(--text-2); }
+.show-done { justify-self: center; grid-column: 1 / -1; }
 
 /* ───────────── Tâches ───────────── */
 .list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
