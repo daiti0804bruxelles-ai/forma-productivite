@@ -44,7 +44,7 @@ export default function GoalsPage({goals,onChange}:Props){
  }
  const updateProgress=(goal:Goal,next:number)=>{if(!Number.isFinite(next))return;const value=safeNumber(Math.max(0,Math.min(1000000000,goal.mode==='measured'?next:next)));if(value===goal.current)return;onChange(goals.map(g=>g.id===goal.id?{...g,current:value,history:[...(g.history||[]),{at:new Date().toISOString(),from:g.current,to:value}]}:g));setManual(prev=>({...prev,[goal.id]:String(value)}))}
  const saveManual=(goal:Goal)=>{const raw=manual[goal.id];if(raw===undefined||raw.trim()==='')return;const value=Number(raw);if(!Number.isFinite(value)||value<0||value>1000000000){setError('Saisis une valeur positive valide.');return}setError('');updateProgress(goal,value)}
- return <><section className="page-intro"><div><div className="eyebrow"><span className="eyebrow-line"/> AVANCEZ À VOTRE RYTHME</div><h1>Mes objectifs</h1><p>Suivez simplement vos objectifs, avec un compteur ou une mesure.</p></div><button className="primary-btn" onClick={openNew}><Plus size={18}/> Nouvel objectif</button></section>
+ return <><section className="page-intro"><div><h1>Mes objectifs</h1></div><button className="primary-btn" onClick={openNew}><Plus size={18}/> Nouvel objectif</button></section>
  <section className="panel" style={{padding:20,display:'grid',gap:16}}>
  {goals.length===0&&<div className="empty">Aucun objectif pour le moment. Créez votre premier objectif pour commencer.</div>}
  {goals.map(goal=>{const pct=progressPercent(goal);return <article key={goal.id} style={{padding:18,border:'1px solid rgba(120,120,128,.2)',borderRadius:16,display:'grid',gap:12,minWidth:0}}>
