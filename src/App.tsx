@@ -323,6 +323,9 @@ useEffect(() => {
   }
  })
  const [draggedHabitId,setDraggedHabitId]=useState<string|null>(null)
+ const [habitDragPosition,setHabitDragPosition]=useState<{x:number;y:number}|null>(null)
+ const [habitDropTarget,setHabitDropTarget]=useState<string|null>(null)
+ const habitDragRef=useRef<{id:string;period:Period;targetId?:string}|null>(null)
  const moveHabit=(habitId:string,targetPeriod:Period,targetId?:string)=>{
   setData(prev=>{
    const habit=prev.habits.find(h=>h.id===habitId)
@@ -338,23 +341,32 @@ useEffect(() => {
    return {...prev,habits:remaining}
   })
  }
- const shiftHabit=(habitId:string,direction:-1|1)=>{
-  setData(prev=>{
-   const current=prev.habits.find(h=>h.id===habitId)
-   if(!current)return prev
-   const siblings=prev.habits.filter(h=>h.period===current.period)
-   if(siblings.length<2)return prev
-   const pos=siblings.findIndex(h=>h.id===habitId)
-   if(pos<0)return prev
-   const target=(pos+direction+siblings.length)%siblings.length
-   const reordered=[...siblings]
-   const [moved]=reordered.splice(pos,1)
-   reordered.splice(target,0,moved)
-   let index=0
-   return {...prev,habits:prev.habits.map(h=>h.period===current.period?reordered[index++]:h)}
-  })
+ const startHabitDrag=(e:React.PointerEvent<HTMLButtonElement>,habitId:string)=>{
+  if(e.button!==0)return
+  e.currentTarget.setPointerCapture(e.pointerId)
+  habitDragRef.current={id:habitId,period:data.habits.find(h=>h.id===habitId)?.period||'Matin'}
+  setDraggedHabitId(habitId);setHabitDragPosition({x:e.clientX,y:e.clientY})
  }
- const toggleTask=(taskId:string)=>setData(prev=>{
+ const trackHabitDrag=(e:React.PointerEvent<HTMLButtonElement>)=>{
+  if(!habitDragRef.current)return
+  setHabitDragPosition({x:e.clientX,y:e.clientY})
+  const element=document.elementFromPoint(e.clientX,e.clientY)
+  const row=element?.closest('[data-habit-row]')
+  const section=element?.closest('[data-habit-period]')
+  const period=section?.getAttribute('data-habit-period') as Period|null
+  if(period){
+   habitDragRef.current.period=period
+   habitDragRef.current.targetId=row?.getAttribute('data-habit-row')||undefined
+   setHabitDropTarget(habitDragRef.current.targetId||period)
+  }else{habitDragRef.current.targetId=undefined;setHabitDropTarget(null)}
+ }
+ const finishHabitDrag=(e:React.PointerEvent<HTMLButtonElement>)=>{
+  const drag=habitDragRef.current
+  if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId)
+  habitDragRef.current=null;setDraggedHabitId(null);setHabitDragPosition(null);setHabitDropTarget(null)
+  if(drag&&habitDropTarget&&drag.targetId!==drag.id)moveHabit(drag.id,drag.period,drag.targetId)
+ }
+  const toggleTask=(taskId:string)=>setData(prev=>{
   const task=prev.tasks.find(t=>t.id===taskId)
   if(!task)return prev
   const key=task.recurring?`task:${task.id}:${task.date}`:`task:${task.id}`
@@ -439,7 +451,17 @@ useEffect(() => {
   if(drag?.target&&drag.target!==drag.id)reorderTask(drag.id,drag.target)
  }
   const addSubtask=(taskId:string)=>{const title=subtaskDraft.trim();if(!title)return;setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,subtasks:[...(t.subtasks||[]),{id:id(),title,done:false}]}:t)}));setSubtaskDraft('')}
- const toggleSubtask=(taskId:string,subtaskId:string)=>setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,subtasks:(t.subtasks||[]).map(st=>st.id===subtaskId?{...st,done:!st.done}:st)}:t)}))
+ const toggleSubtask=(taskId:string,subtaskId:string)=>setData(prev=>{
+  const task=prev.tasks.find(t=>t.id===taskId)
+  if(!task)return prev
+  const subtasks=(task.subtasks||[]).map(st=>st.id===subtaskId?{...st,done:!st.done}:st)
+  const complete=subtasks.length>0&&subtasks.every(st=>st.done)
+  const newlyCompleted=complete&&!task.done
+  const key=task.recurring?`task:${task.id}:${task.date}`:`task:${task.id}`
+  return {...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,subtasks,done:complete}:t),
+   activityDays:newlyCompleted?Array.from(new Set([...(prev.activityDays||[]),todayKey()])):prev.activityDays,
+   xpLedger:newlyCompleted?awardXp(prev.xpLedger,key,'task',task.skillIds,task.recurring?3:10):prev.xpLedger}
+ })
  const removeSubtask=(taskId:string,subtaskId:string)=>setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,subtasks:(t.subtasks||[]).filter(st=>st.id!==subtaskId)}:t)}))
  const monthDays=useMemo(()=>{const first=new Date(visibleMonth.getFullYear(),visibleMonth.getMonth(),1);const offset=(first.getDay()+6)%7;return Array.from({length:42},(_,i)=>new Date(first.getFullYear(),first.getMonth(),1-offset+i))},[visibleMonth])
  const selectedEvents=data.events.filter(e=>eventOccursOn(e,selectedDate)).sort((a,b)=>a.time.localeCompare(b.time))
@@ -476,7 +498,7 @@ useEffect(() => {
 <div className="panel-heading"><div><h2>Programme du jour</h2><p>Les activités de ton calendrier</p></div><button className="text-action" onClick={()=>go('calendar')}>Calendrier <ArrowRight size={16}/></button></div>
 <div className="agenda-row" style={{maxHeight:'min(48vh,440px)',overflowY:'auto'}}>{todayEvents.length?todayEvents.map(ev=><div className="agenda-item" key={ev.id}><span className="agenda-time">{ev.time}</span><span className={`agenda-stripe ${categoryClass[ev.category]||'lavender'}`}/><div><strong>{ev.title}</strong><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}</small></div></div>):<Empty message="Aucune activité prévue aujourd’hui. Planifie ta journée dans le calendrier."/>}</div>
 </section></div>}
-   {page==='habits'&&<><section className="page-intro"><div><div className="eyebrow"><span className="eyebrow-line"/> CRÉEZ VOTRE ROUTINE</div><h1>Mes habitudes</h1><p>Vos rituels, à votre rythme. Cochez ou décochez à tout moment.</p></div><button className="primary-btn" onClick={()=>openAdd('habit')}><Plus size={18}/> Nouvelle habitude</button></section><div className="wide-progress"><div><strong>Progression du jour</strong><p>{habitsDone} habitude{habitsDone!==1?'s':''} sur {data.habits.length} réalisée{habitsDone!==1?'s':''}</p></div><div className="progress-right"><strong>{habitProgress}%</strong><div className="meter"><div style={{width:`${habitProgress}%`}}/></div></div></div><div className="period-grid">{periods.map(period=><section className="panel period-panel" key={period.name} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(draggedHabitId)moveHabit(draggedHabitId,period.name);setDraggedHabitId(null)}}><div className="period-heading"><span className="period-icon"><period.icon size={19}/></span><div><h2>{period.name}</h2><small>{period.time}</small></div></div>{data.habits.filter(h=>h.period===period.name).map(h=><div className="habit-row" key={h.id} draggable onDragStart={e=>{e.dataTransfer.effectAllowed='move';setDraggedHabitId(h.id)}} onDragEnd={()=>setDraggedHabitId(null)} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();e.stopPropagation();if(draggedHabitId&&draggedHabitId!==h.id)moveHabit(draggedHabitId,period.name,h.id);setDraggedHabitId(null)}}><button className={`check-btn ${completed.includes(h.id)?'checked':''}`} onClick={()=>toggleHabit(h.id)} aria-label={`${completed.includes(h.id)?'Décocher':'Cocher'} ${h.title}`}>{completed.includes(h.id)&&<Check size={15}/>}</button><div className="item-copy"><strong className={completed.includes(h.id)?'completed':''}>{h.title}</strong><small>{h.category}</small></div><button type="button" className="small-icon" title="Monter" aria-label={`Monter ${h.title}`} onClick={()=>shiftHabit(h.id,-1)}>↑</button><button type="button" className="small-icon" title="Descendre" aria-label={`Descendre ${h.title}`} onClick={()=>shiftHabit(h.id,1)}>↓</button><button className="small-icon" title="Modifier" aria-label={`Modifier ${h.title}`} onClick={()=>openEdit('habit',h)}><Pencil size={15}/></button><button className="small-icon" title="Supprimer" aria-label={`Supprimer ${h.title}`} onClick={()=>deleteItem('habit',h.id)}><Trash2 size={15}/></button></div>)}{!data.habits.some(h=>h.period===period.name)&&<Empty message="Aucune habitude ici."/>}<button className="bottom-link" onClick={()=>{openAdd('habit');setFormPeriod(period.name)}}><Plus size={16}/> Ajouter</button></section>)}</div></>}
+   {page==='habits'&&<><section className="page-intro"><div><div className="eyebrow"><span className="eyebrow-line"/> CRÉEZ VOTRE ROUTINE</div><h1>Mes habitudes</h1><p>Vos rituels, à votre rythme. Cochez ou décochez à tout moment.</p></div><button className="primary-btn" onClick={()=>openAdd('habit')}><Plus size={18}/> Nouvelle habitude</button></section><div className="wide-progress"><div><strong>Progression du jour</strong><p>{habitsDone} habitude{habitsDone!==1?'s':''} sur {data.habits.length} réalisée{habitsDone!==1?'s':''}</p></div><div className="progress-right"><strong>{habitProgress}%</strong><div className="meter"><div style={{width:`${habitProgress}%`}}/></div></div></div><div className="period-grid">{periods.map(period=><section className="panel period-panel" key={period.name} data-habit-period={period.name} style={{outline:habitDropTarget===period.name?'2px dashed #a78bfa':undefined}}><div className="period-heading"><span className="period-icon"><period.icon size={19}/></span><div><h2>{period.name}</h2><small>{period.time}</small></div></div>{data.habits.filter(h=>h.period===period.name).map(h=><div className="habit-row" key={h.id} data-habit-row={h.id} style={{opacity:draggedHabitId===h.id?.28:1,outline:habitDropTarget===h.id?'2px dashed #a78bfa':undefined,borderRadius:10,transition:'opacity .15s ease'}}><button type="button" aria-label={`Maintenir et déplacer ${h.title}`} onPointerDown={e=>startHabitDrag(e,h.id)} onPointerMove={trackHabitDrag} onPointerUp={finishHabitDrag} onPointerCancel={()=>{habitDragRef.current=null;setDraggedHabitId(null);setHabitDragPosition(null);setHabitDropTarget(null)}} style={{touchAction:'none',cursor:'grab',padding:'10px 4px',display:'flex',background:'transparent',border:0,color:'#a6a1ba',flexShrink:0}}><GripVertical size={21}/></button><button className={`check-btn ${completed.includes(h.id)?'checked':''}`} onClick={()=>toggleHabit(h.id)} aria-label={`${completed.includes(h.id)?'Décocher':'Cocher'} ${h.title}`}>{completed.includes(h.id)&&<Check size={15}/>}</button><div className="item-copy"><strong className={completed.includes(h.id)?'completed':''}>{h.title}</strong><small>{h.category}</small></div><button className="small-icon" title="Modifier" aria-label={`Modifier ${h.title}`} onClick={()=>openEdit('habit',h)}><Pencil size={15}/></button><button className="small-icon" title="Supprimer" aria-label={`Supprimer ${h.title}`} onClick={()=>deleteItem('habit',h.id)}><Trash2 size={15}/></button></div>)}{!data.habits.some(h=>h.period===period.name)&&<Empty message="Aucune habitude ici."/>}<button className="bottom-link" onClick={()=>{openAdd('habit');setFormPeriod(period.name)}}><Plus size={16}/> Ajouter</button></section>)}</div>{draggedHabitId&&habitDragPosition&&<div aria-hidden="true" style={{position:'fixed',left:habitDragPosition.x+18,top:habitDragPosition.y-24,zIndex:9999,pointerEvents:'none',padding:'12px 18px',borderRadius:14,background:'#302b46',border:'1px solid #9b83ee',boxShadow:'0 16px 40px #0008',color:'#fff',fontWeight:650,maxWidth:'min(75vw,380px)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',transform:'rotate(-2deg) scale(1.03)'}}>{data.habits.find(h=>h.id===draggedHabitId)?.title}</div>}</>}
   {page==='tasks'&&<><section className="page-intro" style={{marginBottom:18}}><div><div className="eyebrow"><span className="eyebrow-line"/> AVANCER SANS SE DISPERSER</div><h1>Mes tâches</h1><p>Une chose à la fois.</p></div><button className="primary-btn" onClick={()=>openAdd('task')}><Plus size={18}/> Nouvelle tâche</button></section>
 <section className="panel tasks-panel" style={{padding:'clamp(14px,3vw,26px)'}}>
 <div className="list-toolbar" style={{marginBottom:12,gap:12,flexWrap:'wrap'}}><div className="filter-tabs" role="tablist" aria-label="État des tâches">{(['À faire','Terminées'] as const).map(f=><button type="button" role="tab" aria-selected={taskFilter===f} key={f} className={taskFilter===f?'selected':''} onClick={()=>setTaskFilter(f)}>{f}</button>)}</div><span className="count-label">{displayedTasks.length} tâche{displayedTasks.length!==1?'s':''} {taskFilter==='À faire'?'restante'+(displayedTasks.length!==1?'s':''):'terminée'+(displayedTasks.length!==1?'s':'')}</span></div>
