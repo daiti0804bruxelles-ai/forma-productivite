@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Users, Flame, Home, LayoutGrid, Menu, MoreHorizontal, Plus, Repeat2, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, BriefcaseBusiness, Dumbbell, BookOpen, ListTodo } from 'lucide-react'
+import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Users, Flame, Home, LayoutGrid, Menu, MoreHorizontal, Plus, Repeat2, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
@@ -58,7 +58,6 @@ function isAppData(value:unknown):value is AppData{
  return Object.entries(d.completedHabits).every(([day,ids])=>validDate(day)&&Array.isArray(ids)&&ids.every(validText))
 }
 const nav:{id:Page;label:string;icon:LucideIcon}[]=[{id:'dashboard',label:'Tableau de bord',icon:Home},{id:'habits',label:'Mes habitudes',icon:Repeat2},{id:'tasks',label:'Mes tâches',icon:ListTodo},{id:'goals',label:'Mes objectifs',icon:CircleCheck},{id:'skills',label:'Compétences',icon:Sparkles},{id:'calendar',label:'Calendrier',icon:CalendarDays}]
-const categoryIcon:Record<string,LucideIcon>={Personnel:Sparkles,Travail:BriefcaseBusiness,Sport:Dumbbell,Apprentissage:BookOpen}
 const categoryClass:Record<string,string>={Personnel:'lavender',Travail:'blue',Sport:'peach',Apprentissage:'mint'}
 const periods:{name:Period;icon:LucideIcon;time:string}[]=[{name:'Matin',icon:Sunrise,time:'06:00 — 12:00'},{name:'Après-midi',icon:Sun,time:'12:00 — 18:00'},{name:'Soir',icon:Moon,time:'18:00 — 00:00'}]
 function Empty({message}:{message:string}){return <div className="empty">{message}</div>}
