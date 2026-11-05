@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/competences-manuelles-chatgpt
+      - 'design/**'
   pull_request:
     branches:
       - main
