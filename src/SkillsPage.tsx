@@ -8,7 +8,7 @@ const skillNameById: Record<string, string> = Object.fromEntries(SKILL_GROUPS.fl
 const barStyle = { height: 7, background: 'rgba(120,120,128,.18)', borderRadius: 999, overflow: 'hidden' as const }
 function ProgressBar({ current, required }: { current: number; required: number }) {
   return <div role="progressbar" aria-valuenow={current} aria-valuemin={0} aria-valuemax={required}
-    style={barStyle}><div style={{ width: `${Math.min(100, current / required * 100)}%`, height: '100%', background: '#8b5cf6', borderRadius: 999 }}/></div>
+    style={barStyle}><div style={{ width: `${Math.min(100, current / required * 100)}%`, height: '100%', background: 'var(--fill-border)', borderRadius: 999 }}/></div>
 }
 
 export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
@@ -61,7 +61,7 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
                 <div style={{ fontSize: 12, opacity: .7, marginTop: 4, overflowWrap: 'anywhere' }}>{skillNames}</div>
                 <time dateTime={eventDay} style={{ display: 'block', fontSize: 11, opacity: .55, marginTop: 4 }}>{Number.isNaN(Date.parse(eventDay)) ? '' : new Date(eventDay.includes('T') ? eventDay : `${eventDay}T12:00:00`).toLocaleDateString('fr-FR')}</time>
               </div>
-              <strong style={{ whiteSpace: 'nowrap', fontSize: 13, color: event.amountPerSkill < 0 ? '#dc2626' : '#16a34a' }}>{event.amountPerSkill > 0 ? '+' : ''}{event.amountPerSkill.toLocaleString('fr-FR')} XP / compétence</strong>
+              <strong style={{ whiteSpace: 'nowrap', fontSize: 13, color: event.amountPerSkill < 0 ? 'var(--danger)' : 'var(--success)' }}>{event.amountPerSkill > 0 ? '+' : ''}{event.amountPerSkill.toLocaleString('fr-FR')} XP / compétence</strong>
             </div>
           })}
         </div>}

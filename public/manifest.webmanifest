@@ -3,8 +3,8 @@
   "short_name": "Forma",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#090b12",
-  "theme_color": "#090b12",
+  "background_color": "#F4F3EF",
+  "theme_color": "#F4F3EF",
   "icons": [
     {
       "src": "/icon.svg",
