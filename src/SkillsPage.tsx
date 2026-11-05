@@ -15,8 +15,8 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
   const [expanded, setExpanded] = useState<string[]>([])
   const recentEvents = [...(ledger?.events ?? [])].reverse().slice(0, 12)
   return <section>
-    <div className="page-intro"><div><div className="eyebrow">PROGRESSION PERSONNELLE</div>
-      <h1>Mes compétences</h1><p>19 compétences réparties dans 6 domaines. Les actions accomplies font progresser tes compétences. Les pénalités réduisent ta progression, sans retirer les niveaux acquis.</p></div></div>
+    <div className="page-intro"><div>
+      <h1>Mes compétences</h1></div></div>
     <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr)',gap:16,alignItems:'start'}}>
       <div style={{display:'grid',gap:10}}>
       {SKILL_GROUPS.map(group => {
