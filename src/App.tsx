@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Users, Flame, Home, LayoutGrid, Menu, MoreHorizontal, Plus, Repeat2, UserRound, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, BriefcaseBusiness, Dumbbell, BookOpen, ListTodo } from 'lucide-react'
+import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Users, Flame, Home, LayoutGrid, Menu, MoreHorizontal, Plus, Repeat2, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, BriefcaseBusiness, Dumbbell, BookOpen, ListTodo } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
@@ -7,7 +7,7 @@ import GoalsPage from './GoalsPage'
 import SkillSelector from './SkillSelector'
 import SkillsPage from './SkillsPage'
 import { isAvatarPath } from './avatarStorage'
-import CharacterPage, { DEFAULT_APPEARANCE, isCharacterAppearance, type CharacterAppearance } from './CharacterPage'
+import { isCharacterAppearance, type CharacterAppearance } from './CharacterPage'
 import { isSkillId, type SkillId } from './skillsCatalog'
 import SharedGoalsPage from './SharedGoalsPage'
 import type { Goal } from './GoalsPage'
@@ -15,7 +15,7 @@ import { isValidGoal, progressPercent } from './goalModel'
 import { awardXp, awardCompletedGoals, isValidXpLedger, type XpLedger } from './xpEngine'
 import { rollOverTasks as advanceDay } from './xpSchedule'
 import type { Session } from '@supabase/supabase-js'
-type Page = 'dashboard' | 'habits' | 'tasks' | 'calendar' | 'goals' | 'skills' | 'character'
+type Page = 'dashboard' | 'habits' | 'tasks' | 'calendar' | 'goals' | 'skills'
 type Period = 'Matin' | 'Après-midi' | 'Soir'
 type Habit = { id:string; title:string; period:Period; category:string; skillIds?:SkillId[]; createdOn?:string }
 type Task = { id:string; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[]; dueDate?:string; createdOn?:string }
@@ -57,7 +57,7 @@ function isAppData(value:unknown):value is AppData{
  if(!d.events.every(e=>e&&validText(e.id)&&validText(e.title)&&validText(e.category)&&validDate(e.date)&&typeof e.time==='string'&&/^\d{2}:\d{2}$/.test(e.time)&&(e.endTime===undefined||(typeof e.endTime==='string'&&/^\d{2}:\d{2}$/.test(e.endTime)&&e.endTime>e.time))&&(e.repeatDays===undefined||(Array.isArray(e.repeatDays)&&e.repeatDays.length>0&&e.repeatDays.length<=7&&e.repeatDays.every(day=>Number.isInteger(day)&&day>=0&&day<=6)&&new Set(e.repeatDays).size===e.repeatDays.length))))return false
  return Object.entries(d.completedHabits).every(([day,ids])=>validDate(day)&&Array.isArray(ids)&&ids.every(validText))
 }
-const nav:{id:Page;label:string;icon:LucideIcon}[]=[{id:'dashboard',label:'Tableau de bord',icon:Home},{id:'habits',label:'Mes habitudes',icon:Repeat2},{id:'tasks',label:'Mes tâches',icon:ListTodo},{id:'goals',label:'Mes objectifs',icon:CircleCheck},{id:'skills',label:'Compétences',icon:Sparkles},{id:'character',label:'Mon personnage',icon:UserRound},{id:'calendar',label:'Calendrier',icon:CalendarDays}]
+const nav:{id:Page;label:string;icon:LucideIcon}[]=[{id:'dashboard',label:'Tableau de bord',icon:Home},{id:'habits',label:'Mes habitudes',icon:Repeat2},{id:'tasks',label:'Mes tâches',icon:ListTodo},{id:'goals',label:'Mes objectifs',icon:CircleCheck},{id:'skills',label:'Compétences',icon:Sparkles},{id:'calendar',label:'Calendrier',icon:CalendarDays}]
 const categoryIcon:Record<string,LucideIcon>={Personnel:Sparkles,Travail:BriefcaseBusiness,Sport:Dumbbell,Apprentissage:BookOpen}
 const categoryClass:Record<string,string>={Personnel:'lavender',Travail:'blue',Sport:'peach',Apprentissage:'mint'}
 const periods:{name:Period;icon:LucideIcon;time:string}[]=[{name:'Matin',icon:Sunrise,time:'06:00 — 12:00'},{name:'Après-midi',icon:Sun,time:'12:00 — 18:00'},{name:'Soir',icon:Moon,time:'18:00 — 00:00'}]
@@ -415,13 +415,12 @@ useEffect(() => {
   {mobileOpen&&<button className="mobile-overlay" onClick={()=>setMobileOpen(false)} aria-label="Fermer la navigation"/>}
   <aside className={`sidebar ${mobileOpen?'sidebar-open':''}`}><div className="brand"><div className="brand-mark"><LayoutGrid size={20} strokeWidth={2.5}/></div><span>forma<span className="brand-dot">.</span></span></div><p className="sidebar-label">ESPACE PERSONNEL</p><nav className="nav">{nav.map(item=><button key={item.id} className={`nav-item ${page===item.id?'active':''}`} onClick={()=>go(item.id)}><item.icon size={19} strokeWidth={page===item.id?2.3:1.9}/><span>{item.label}</span>{page===item.id&&<span className="active-pin"/>}</button>)}</nav><div className="sidebar-bottom"><button className="backup-sidebar-btn" onClick={openBackup}><ShieldCheck size={18}/> Sauvegarder mes données</button><div className="tip-card"><div className="tip-icon"><Sparkles size={17}/></div><strong>Un peu chaque jour.</strong><p>La régularité transforme les petits efforts en grandes avancées.</p></div><div className="profile"><div className="avatar">M</div><div><strong>Mon espace</strong><small>Version personnelle</small></div><MoreHorizontal size={19}/></div></div></aside>
   {mobileMoreOpen&&<><button type="button" aria-label="Fermer le menu" onClick={()=>setMobileMoreOpen(false)} style={{position:'fixed',inset:0,zIndex:29,border:0,background:'rgba(0,0,0,.35)'}}/><div role="menu" aria-label="Autres pages" style={{position:'fixed',zIndex:31,bottom:'calc(83px + env(safe-area-inset-bottom))',left:16,right:16,maxWidth:420,margin:'0 auto',padding:12,borderRadius:18,background:'#1b2030',border:'1px solid #394054',boxShadow:'0 16px 50px #0007',display:'grid',gap:5}}>
-     {nav.filter(item=>!['dashboard','habits','tasks','character'].includes(item.id)).map(item=><button role="menuitem" key={item.id} onClick={()=>go(item.id)} style={{display:'flex',alignItems:'center',gap:12,color:'#edf0fa',background:page===item.id?'#302745':'transparent',border:0,padding:'14px 16px',borderRadius:12,textAlign:'left',fontSize:14,fontWeight:700}}><item.icon size={19}/>{item.label}</button>)}
+     {nav.filter(item=>!['dashboard','habits','tasks'].includes(item.id)).map(item=><button role="menuitem" key={item.id} onClick={()=>go(item.id)} style={{display:'flex',alignItems:'center',gap:12,color:'#edf0fa',background:page===item.id?'#302745':'transparent',border:0,padding:'14px 16px',borderRadius:12,textAlign:'left',fontSize:14,fontWeight:700}}><item.icon size={19}/>{item.label}</button>)}
    </div></>}
-   <nav className="bottom-nav" aria-label="Navigation principale">{nav.filter(item=>['dashboard','habits','tasks','character'].includes(item.id)).map(item=><button key={item.id} className={page===item.id?"selected":""} onClick={()=>go(item.id)} aria-current={page===item.id?"page":undefined}><item.icon size={21}/><span>{item.id==="dashboard"?"Accueil":item.id==="habits"?"Habitudes":item.id==="tasks"?"Tâches":"Perso"}</span></button>)}<button type="button" className={mobileMoreOpen||['goals','skills','calendar'].includes(page)?"selected":""} onClick={()=>setMobileMoreOpen(value=>!value)} aria-expanded={mobileMoreOpen} aria-label="Plus de pages"><Menu size={21}/><span>Plus</span></button></nav>
+   <nav className="bottom-nav" aria-label="Navigation principale">{nav.filter(item=>['dashboard','habits','tasks'].includes(item.id)).map(item=><button key={item.id} className={page===item.id?"selected":""} onClick={()=>go(item.id)} aria-current={page===item.id?"page":undefined}><item.icon size={21}/><span>{item.id==="dashboard"?"Accueil":item.id==="habits"?"Habitudes":item.id==="tasks"?"Tâches":item.label}</span></button>)}<button type="button" className={mobileMoreOpen||['goals','skills','calendar'].includes(page)?"selected":""} onClick={()=>setMobileMoreOpen(value=>!value)} aria-expanded={mobileMoreOpen} aria-label="Plus de pages"><Menu size={21}/><span>Plus</span></button></nav>
   <div className="main-wrap"><header className="topbar"><button className="mobile-menu icon-button" aria-label="Ouvrir la navigation" onClick={()=>setMobileOpen(true)}><Menu size={22}/></button><div className="breadcrumbs">Mon espace <ChevronRight size={15}/><strong>{nav.find(n=>n.id===page)?.label}</strong></div><div className="topbar-right"><span className="today-pill"><span className="green-dot"/>{frDate(new Date(),{day:'numeric',month:'long',year:'numeric'})}</span><button type="button" className="top-avatar backup-avatar" onClick={openBackup} aria-label="Sauvegarder ou restaurer mes données" title="Sauvegarde">M</button></div></header>
   <main className="content">
-  {page==='skills'&&<SkillsPage ledger={data.xpLedger} avatarPath={data.avatarPath} avatarUpdatedAt={data.avatarUpdatedAt} onOpenCharacter={()=>go('character')}/>}
-   {page==='character'&&<CharacterPage ledger={data.xpLedger} userId={session.user.id} avatarPath={data.avatarPath} avatarUpdatedAt={data.avatarUpdatedAt} onAvatarSaved={path=>setData(prev=>({...prev,avatarPath:path,avatarUpdatedAt:new Date().toISOString()}))} appearance={data.characterAppearance ?? DEFAULT_APPEARANCE} onAppearanceChange={appearance=>setData(prev=>({...prev,characterAppearance:appearance}))}/>}
+  {page==='skills'&&<SkillsPage ledger={data.xpLedger} avatarPath={data.avatarPath} avatarUpdatedAt={data.avatarUpdatedAt}/>}
    {page==='dashboard'&&<div style={{display:'grid',gap:16,maxWidth:1120,margin:'0 auto'}}>
 <section className="page-intro" style={{marginBottom:0,paddingBottom:0}}><div><div className="eyebrow"><span className="eyebrow-line"/> VOTRE JOURNÉE EN UN COUP D’ŒIL</div><h1>Aujourd’hui</h1><p>{frDate(new Date(),{weekday:'long',day:'numeric',month:'long'})}</p></div></section>
 <div style={{display:'grid',gridTemplateColumns:'repeat(2,minmax(0,1fr))',gap:12}}>
