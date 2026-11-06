@@ -16,6 +16,7 @@ import { awardXp, awardCompletedGoals, isValidXpLedger, type XpLedger } from './
 import { rollOverTasks as advanceDay } from './xpSchedule'
 import type { Session } from '@supabase/supabase-js'
 import SwipeRow from './SwipeRow'
+import { useSortable, type SortGroups } from './useSortable'
 import QuickAdd, { type QuickAddPayload, type QuickAddType } from './QuickAdd'
 import AppearanceSettings from './AppearanceSettings'
 import { isAppearance, readCachedAppearance, useAppearance, type Appearance } from './theme'
@@ -193,11 +194,7 @@ useEffect(()=>{
  const [taskFilter,setTaskFilter]=useState<'À faire'|'Terminées'>('À faire')
  const [expandedTaskId,setExpandedTaskId]=useState<string|null>(null)
  const [subtaskDraft,setSubtaskDraft]=useState('')
- const [draggedTaskId,setDraggedTaskId]=useState<string|null>(null)
- const [dragTargetId,setDragTargetId]=useState<string|null>(null)
- const [dragPosition,setDragPosition]=useState<{x:number;y:number}|null>(null)
  const [taskMenuId,setTaskMenuId]=useState<string|null>(null)
- const taskDragRef=useRef<{id:string;target:string|null}|null>(null)
  useEffect(()=>{if(!taskMenuId)return;const close=(e:PointerEvent)=>{if(!(e.target as Element)?.closest?.('[data-task-menu]'))setTaskMenuId(null)};const escape=(e:KeyboardEvent)=>{if(e.key==='Escape')setTaskMenuId(null)};document.addEventListener('pointerdown',close);document.addEventListener('keydown',escape);return()=>{document.removeEventListener('pointerdown',close);document.removeEventListener('keydown',escape)}},[taskMenuId])
  const [formTitle,setFormTitle]=useState('')
  const [formSkillIds,setFormSkillIds]=useState<SkillId[]>([])
@@ -295,51 +292,7 @@ useEffect(() => {
     xpLedger: !alreadyDone && habit ? awardXp(prev.xpLedger,`habit:${habitId}:${key}`,'habit',habit.skillIds,10) : prev.xpLedger
   }
  })
- const [draggedHabitId,setDraggedHabitId]=useState<string|null>(null)
- const [habitDragPosition,setHabitDragPosition]=useState<{x:number;y:number}|null>(null)
- const [habitDropTarget,setHabitDropTarget]=useState<string|null>(null)
- const habitDragRef=useRef<{id:string;period:Period;targetId?:string}|null>(null)
- const moveHabit=(habitId:string,targetPeriod:Period,targetId?:string)=>{
-  setData(prev=>{
-   const habit=prev.habits.find(h=>h.id===habitId)
-   if(!habit)return prev
-   const remaining=prev.habits.filter(h=>h.id!==habitId)
-   const moved={...habit,period:targetPeriod}
-   const index=targetId?remaining.findIndex(h=>h.id===targetId):-1
-   if(index>=0)remaining.splice(index,0,moved)
-   else{
-    const last=remaining.reduce((n,h,i)=>h.period===targetPeriod?i:n,-1)
-    remaining.splice(last+1,0,moved)
-   }
-   return {...prev,habits:remaining}
-  })
- }
- const startHabitDrag=(e:React.PointerEvent<HTMLButtonElement>,habitId:string)=>{
-  if(e.button!==0)return
-  e.currentTarget.setPointerCapture(e.pointerId)
-  habitDragRef.current={id:habitId,period:data.habits.find(h=>h.id===habitId)?.period||'Matin'}
-  setDraggedHabitId(habitId);setHabitDragPosition({x:e.clientX,y:e.clientY})
- }
- const trackHabitDrag=(e:React.PointerEvent<HTMLButtonElement>)=>{
-  if(!habitDragRef.current)return
-  setHabitDragPosition({x:e.clientX,y:e.clientY})
-  const element=document.elementFromPoint(e.clientX,e.clientY)
-  const row=element?.closest('[data-habit-row]')
-  const section=element?.closest('[data-habit-period]')
-  const period=section?.getAttribute('data-habit-period') as Period|null
-  if(period){
-   habitDragRef.current.period=period
-   habitDragRef.current.targetId=row?.getAttribute('data-habit-row')||undefined
-   setHabitDropTarget(habitDragRef.current.targetId||period)
-  }else{habitDragRef.current.targetId=undefined;setHabitDropTarget(null)}
- }
- const finishHabitDrag=(e:React.PointerEvent<HTMLButtonElement>)=>{
-  const drag=habitDragRef.current
-  if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId)
-  habitDragRef.current=null;setDraggedHabitId(null);setHabitDragPosition(null);setHabitDropTarget(null)
-  if(drag&&habitDropTarget&&drag.targetId!==drag.id)moveHabit(drag.id,drag.period,drag.targetId)
- }
-  const toggleTask=(taskId:string)=>setData(prev=>{
+ const toggleTask=(taskId:string)=>setData(prev=>{
   const task=prev.tasks.find(t=>t.id===taskId)
   if(!task)return prev
   const key=task.recurring?`task:${task.id}:${task.date}`:`task:${task.id}`
@@ -395,35 +348,7 @@ useEffect(() => {
   }finally{setRestoringBackup(false)}
  }
  const displayedTasks=useMemo(()=>data.tasks.filter(t=>taskFilter==='Terminées'?t.done:!t.done).sort((a,b)=>{const order=data.taskOrder||data.tasks.map(t=>t.id);return order.indexOf(a.id)-order.indexOf(b.id)}),[data.tasks,data.taskOrder,taskFilter])
- const reorderTask=(sourceId:string,targetId:string)=>setData(prev=>{
-  const order=[...(prev.taskOrder||prev.tasks.map(t=>t.id)).filter(id=>prev.tasks.some(t=>t.id===id))]
-  const from=order.indexOf(sourceId),to=order.indexOf(targetId)
-  if(from<0||to<0||from===to)return prev
-  order.splice(from,1);order.splice(to,0,sourceId)
-  return {...prev,taskOrder:order}
- })
- const beginTaskDrag=(event:React.PointerEvent<HTMLButtonElement>,taskId:string)=>{
-  if(event.button!==0)return
-  event.currentTarget.setPointerCapture(event.pointerId)
-  taskDragRef.current={id:taskId,target:null}
-  setDraggedTaskId(taskId)
-  setDragPosition({x:event.clientX,y:event.clientY})
-  setTaskMenuId(null)
- }
- const updateTaskDrag=(event:React.PointerEvent<HTMLButtonElement>)=>{
-  if(!taskDragRef.current)return
-  setDragPosition({x:event.clientX,y:event.clientY})
-  const target=document.elementFromPoint(event.clientX,event.clientY)?.closest('[data-task-row]')?.getAttribute('data-task-row')||null
-  taskDragRef.current.target=target
-  setDragTargetId(target===taskDragRef.current.id?null:target)
- }
- const finishTaskDrag=(event:React.PointerEvent<HTMLButtonElement>)=>{
-  const drag=taskDragRef.current
-  if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId)
-  taskDragRef.current=null;setDraggedTaskId(null);setDragTargetId(null);setDragPosition(null)
-  if(drag?.target&&drag.target!==drag.id)reorderTask(drag.id,drag.target)
- }
-  const addSubtask=(taskId:string)=>{const title=subtaskDraft.trim();if(!title)return;setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,subtasks:[...(t.subtasks||[]),{id:id(),title,done:false}]}:t)}));setSubtaskDraft('')}
+ const addSubtask=(taskId:string)=>{const title=subtaskDraft.trim();if(!title)return;setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,subtasks:[...(t.subtasks||[]),{id:id(),title,done:false}]}:t)}));setSubtaskDraft('')}
  const toggleSubtask=(taskId:string,subtaskId:string)=>setData(prev=>{
   const task=prev.tasks.find(t=>t.id===taskId)
   if(!task)return prev
@@ -502,6 +427,26 @@ useEffect(() => {
  const showFab=page==='dashboard'||page==='habits'||page==='tasks'||page==='calendar'
  const pageTitle=nav.find(n=>n.id===page)?.label
  const subtaskCount=(t:Task)=>{const list=t.subtasks||[];return list.length?`${list.filter(st=>st.done).length}/${list.length}`:''}
+ const taskById=new Map(data.tasks.map(t=>[t.id,t]))
+ const habitById=new Map(data.habits.map(h=>[h.id,h]))
+ const taskSort=useSortable('tasks',{list:displayedTasks.map(t=>t.id)},next=>setData(prev=>{
+  const visible=next.list
+  const order=(prev.taskOrder||prev.tasks.map(t=>t.id)).filter(taskId=>prev.tasks.some(t=>t.id===taskId))
+  prev.tasks.forEach(t=>{if(!order.includes(t.id))order.unshift(t.id)})
+  const slots=order.map((taskId,i)=>visible.includes(taskId)?i:-1).filter(i=>i>=0)
+  const result=[...order]
+  slots.forEach((slot,k)=>{result[slot]=visible[k]})
+  return {...prev,taskOrder:result}
+ }))
+ const habitGroups:SortGroups=Object.fromEntries(periods.map(p=>[p.name,data.habits.filter(h=>h.period===p.name).map(h=>h.id)]))
+ const habitSort=useSortable('habits',habitGroups,next=>setData(prev=>{
+  const placed=new Set(Object.values(next).flat())
+  const regrouped=periods.flatMap(p=>(next[p.name]||[]).flatMap(habitId=>{const h=prev.habits.find(x=>x.id===habitId);return h?[{...h,period:p.name}]:[]}))
+  return {...prev,habits:[...regrouped,...prev.habits.filter(h=>!placed.has(h.id))]}
+ }))
+ const sortedTaskRows=taskSort.items('list').flatMap(taskId=>{const t=taskById.get(taskId);return t?[t]:[]})
+ const ghostTask=taskSort.activeId?taskById.get(taskSort.activeId):undefined
+ const ghostHabit=habitSort.activeId?habitById.get(habitSort.activeId):undefined
  if (authLoading) return <div className="splash" role="status"><span className="brand-mark"><Check size={18} strokeWidth={3}/></span><span>Chargement…</span></div>
  if (!session) return <AuthScreen />
  if (dataLoading) return <div className="splash" role="status">{dataError?<><p>Impossible de charger tes données.</p><button type="button" className="primary-btn" onClick={()=>window.location.reload()}>Réessayer</button></>:<><span className="brand-mark"><Check size={18} strokeWidth={3}/></span><span>Chargement de ta journée…</span></>}</div>
@@ -567,22 +512,24 @@ useEffect(() => {
     {page==='habits'&&<>
      <section className="page-intro"><div><h1>Mes habitudes</h1><p>{habitsDone} sur {data.habits.length} réalisée{habitsDone!==1?'s':''} aujourd’hui</p></div><button type="button" className="primary-btn desktop-only" onClick={()=>openAdd('habit')}><Plus size={18}/> Nouvelle habitude</button></section>
      <div className="bar page-bar" role="progressbar" aria-label="Progression des habitudes" aria-valuemin={0} aria-valuemax={100} aria-valuenow={habitProgress}><div style={{width:`${habitProgress}%`}}/></div>
-     <div className="period-grid">{periods.map(period=><section className={`list-section ${habitDropTarget===period.name?'is-drop':''}`} key={period.name} data-habit-period={period.name}>
+     <div className="period-grid">{periods.map(period=>{const ids=habitSort.items(period.name);return <section className="list-section" key={period.name} {...habitSort.zoneProps(period.name)}>
       <div className="section-head"><h2><period.icon size={18}/> {period.name}</h2><small>{period.time}</small></div>
       <div className="list-card">
-       {data.habits.filter(h=>h.period===period.name).map(h=>{const done=completed.includes(h.id);return <div className={`check-row ${draggedHabitId===h.id?'is-ghosted':''} ${habitDropTarget===h.id?'is-drop':''}`} key={h.id} data-habit-row={h.id}>
-        <button type="button" className="drag-handle" aria-label={`Maintenir et déplacer ${h.title}`} onPointerDown={e=>startHabitDrag(e,h.id)} onPointerMove={trackHabitDrag} onPointerUp={finishHabitDrag} onPointerCancel={()=>{habitDragRef.current=null;setDraggedHabitId(null);setHabitDragPosition(null);setHabitDropTarget(null)}}><GripVertical size={18}/></button>
-        <RoundCheck done={done} label={`${done?'Décocher':'Cocher'} ${h.title}`} onToggle={()=>checkHabit(h)}/>
-        <div className="row-copy"><span className={done?'is-done':''}>{h.title}</span><small>{h.category}</small></div>
-        {xpFlash?.id===h.id&&<span className="xp-flash">+{xpFlash.amount} XP</span>}
-        <button type="button" className="small-icon" title="Modifier" aria-label={`Modifier ${h.title}`} onClick={()=>openEdit('habit',h)}><Pencil size={16}/></button>
-        <button type="button" className="small-icon" title="Supprimer" aria-label={`Supprimer ${h.title}`} onClick={()=>deleteItem('habit',h.id)}><Trash2 size={16}/></button>
-       </div>})}
-       {!data.habits.some(h=>h.period===period.name)&&<Empty message="Aucune habitude ici."/>}
+       <div className="sort-list" {...habitSort.listProps(period.name)}>
+        {ids.flatMap(habitId=>{const h=habitById.get(habitId);return h?[h]:[]}).map(h=>{const done=completed.includes(h.id);return <div key={h.id} {...habitSort.rowProps(h.id)} className={`check-row ${habitSort.activeId===h.id?'is-placeholder':''}`}>
+         <button type="button" className="drag-handle" {...habitSort.handleProps(h.id,`Déplacer ${h.title}`)}><GripVertical size={18}/></button>
+         <RoundCheck done={done} label={`${done?'Décocher':'Cocher'} ${h.title}`} onToggle={()=>checkHabit(h)}/>
+         <div className="row-copy"><span className={done?'is-done':''}>{h.title}</span><small>{h.category}</small></div>
+         {xpFlash?.id===h.id&&<span className="xp-flash">+{xpFlash.amount} XP</span>}
+         <button type="button" className="small-icon" title="Modifier" aria-label={`Modifier ${h.title}`} onClick={()=>openEdit('habit',h)}><Pencil size={16}/></button>
+         <button type="button" className="small-icon" title="Supprimer" aria-label={`Supprimer ${h.title}`} onClick={()=>deleteItem('habit',h.id)}><Trash2 size={16}/></button>
+        </div>})}
+       </div>
+       {ids.length===0&&<Empty message={habitSort.activeId?'Dépose ici':'Aucune habitude ici.'}/>}
        <button type="button" className="add-row" onClick={()=>{openAdd('habit');setFormPeriod(period.name)}}><Plus size={16}/> Ajouter</button>
       </div>
-     </section>)}</div>
-     {draggedHabitId&&habitDragPosition&&<div aria-hidden="true" className="drag-ghost" style={{left:habitDragPosition.x+18,top:habitDragPosition.y-24}}>{data.habits.find(h=>h.id===draggedHabitId)?.title}</div>}
+     </section>})}</div>
+     {ghostHabit&&<div ref={habitSort.ghostRef} className="sort-ghost" style={habitSort.ghostStyle} aria-hidden="true"><div className="check-row"><span className="drag-handle"><GripVertical size={18}/></span><span className="round-check" aria-pressed={completed.includes(ghostHabit.id)}/><div className="row-copy"><span>{ghostHabit.title}</span><small>{ghostHabit.category}</small></div></div></div>}
     </>}
 
     {page==='tasks'&&<>
@@ -591,11 +538,11 @@ useEffect(() => {
       <div className="segmented" role="tablist" aria-label="État des tâches">{(['À faire','Terminées'] as const).map(f=><button type="button" role="tab" aria-selected={taskFilter===f} key={f} onClick={()=>setTaskFilter(f)}>{f}</button>)}</div>
       <span className="count-label">{displayedTasks.length} tâche{displayedTasks.length!==1?'s':''} {taskFilter==='À faire'?'restante'+(displayedTasks.length!==1?'s':''):'terminée'+(displayedTasks.length!==1?'s':'')}</span>
      </div>
-     <div className="list-card">
-      {displayedTasks.map(t=><div key={t.id} data-task-row={t.id} className={`task-item ${draggedTaskId===t.id?'is-ghosted':''} ${dragTargetId===t.id?'is-drop':''}`}>
+     <div className="list-card" {...taskSort.listProps('list')}>
+      {sortedTaskRows.map(t=><div key={t.id} {...taskSort.rowProps(t.id)} className={`task-item ${taskSort.activeId===t.id?'is-placeholder':''}`}>
        <SwipeRow done={t.done} onComplete={()=>checkTask(t)} onDelete={()=>deleteItem('task',t.id)}>
         <div className="check-row">
-         <button type="button" className="drag-handle" data-no-swipe aria-label={`Maintenir et déplacer ${t.title}`} title="Maintenir pour réorganiser" onPointerDown={e=>beginTaskDrag(e,t.id)} onPointerMove={updateTaskDrag} onPointerUp={finishTaskDrag} onPointerCancel={()=>{taskDragRef.current=null;setDraggedTaskId(null);setDragTargetId(null);setDragPosition(null)}}><GripVertical size={18}/></button>
+         <button type="button" className="drag-handle" data-no-swipe {...taskSort.handleProps(t.id,`Déplacer ${t.title}`)}><GripVertical size={18}/></button>
          <RoundCheck done={t.done} label={`${t.done?'Rouvrir':'Terminer'} ${t.title}`} onToggle={()=>checkTask(t)}/>
          <div className="row-copy"><span className={t.done?'is-done':''}>{t.title}</span><small>{t.date===todayKey()?'Aujourd’hui':frDate(makeDate(t.date),{day:'numeric',month:'short'})}{t.recurring?' · chaque jour':''}{t.dueDate&&t.dueDate<t.date?' · en retard':''} · {t.category}</small></div>
          {xpFlash?.id===t.id&&<span className="xp-flash">+{xpFlash.amount} XP</span>}
@@ -603,7 +550,7 @@ useEffect(() => {
          <button type="button" className="small-icon" title="Modifier" aria-label={`Modifier ${t.title}`} onClick={()=>openEdit('task',t)}><Pencil size={16}/></button>
         </div>
        </SwipeRow>
-       {expandedTaskId===t.id&&<div className="subtasks">
+       {expandedTaskId===t.id&&<div className="subtasks" data-no-sort>
         <strong>Sous-tâches · {subtaskCount(t)||'0/0'}</strong>
         {(t.subtasks||[]).map(st=><div key={st.id} className="subtask"><input type="checkbox" checked={st.done} onChange={()=>toggleSubtask(t.id,st.id)} aria-label={st.title}/><span className={st.done?'is-done':''}>{st.title}</span><button type="button" className="small-icon" aria-label={`Supprimer la sous-tâche ${st.title}`} onClick={()=>removeSubtask(t.id,st.id)}><Trash2 size={15}/></button></div>)}
         <form onSubmit={e=>{e.preventDefault();addSubtask(t.id)}} className="subtask-form"><input value={subtaskDraft} onChange={e=>setSubtaskDraft(e.target.value)} placeholder="Ajouter une étape…" aria-label="Nouvelle sous-tâche" maxLength={200}/><button type="submit" disabled={!subtaskDraft.trim()} className="secondary-btn">Ajouter</button></form>
@@ -611,7 +558,7 @@ useEffect(() => {
       </div>)}
       {displayedTasks.length===0&&<Empty message={taskFilter==='À faire'?'Tout est fait pour le moment.':'Aucune tâche terminée pour le moment.'}/>}
      </div>
-     {draggedTaskId&&dragPosition&&<div aria-hidden="true" className="drag-ghost" style={{left:dragPosition.x+18,top:dragPosition.y-24}}>{data.tasks.find(t=>t.id===draggedTaskId)?.title}</div>}
+     {ghostTask&&<div ref={taskSort.ghostRef} className="sort-ghost" style={taskSort.ghostStyle} aria-hidden="true"><div className="check-row"><span className="drag-handle"><GripVertical size={18}/></span><span className="round-check" aria-pressed={ghostTask.done}/><div className="row-copy"><span className={ghostTask.done?'is-done':''}>{ghostTask.title}</span><small>{ghostTask.category}</small></div></div></div>}
     </>}
 
     {page==='goals'&&<>
