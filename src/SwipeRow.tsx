@@ -38,6 +38,8 @@ export default function SwipeRow({ children, onComplete, onDelete, completeLabel
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
     const g = gesture.current
     if (!g) return
+    // Un réordonnancement (glisser-déposer) a démarré : pas de glissement latéral en même temps.
+    if (document.documentElement.dataset.sorting) { gesture.current = null; if (dragging) { setDragging(false); moveTo(0) } return }
     const dx = e.clientX - g.x
     const dy = e.clientY - g.y
     if (!g.axis) {
