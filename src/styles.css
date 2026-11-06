@@ -213,8 +213,52 @@ svg { flex-shrink: 0; }
 .today-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
 .today-date { color: var(--text-2); font-size: .85rem; font-weight: 500; margin-bottom: 4px; }
 .today-date::first-letter { text-transform: uppercase; }
-.streak-chip { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; background: var(--surface); color: var(--text); font-size: .85rem; font-weight: 600; white-space: nowrap; }
-.streak-chip svg { color: var(--accent); }
+.streak { display: flex; align-items: center; gap: 12px; padding: 8px 18px 8px 8px; border-radius: 22px; background: var(--surface); box-shadow: var(--shadow); min-width: 0; }
+.streak-flame { position: relative; width: 56px; height: 56px; flex-shrink: 0; display: grid; place-items: center; }
+.streak-flame::before { content: ''; position: absolute; inset: 6px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 140, 40, .38), transparent 70%); opacity: 0; }
+.streak-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.streak-ring circle { fill: none; stroke-width: 4; }
+.streak-track { stroke: var(--line); }
+.streak-progress { stroke: #FF8A1F; stroke-linecap: round; transition: stroke-dashoffset .8s cubic-bezier(.2, .8, .2, 1); }
+.flame { position: relative; width: 32px; height: 32px; transform-origin: 50% 92%; filter: drop-shadow(0 3px 8px rgba(255, 110, 30, .5)); }
+.flame-core { transform-origin: 50% 95%; }
+.streak-copy { display: grid; gap: 3px; min-width: 0; }
+.streak-copy strong { display: flex; align-items: baseline; gap: 6px; line-height: 1; white-space: nowrap; }
+.streak-count { font-size: 1.85rem; font-weight: 800; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.streak-copy small { font-size: .8rem; font-weight: 600; color: var(--text-2); }
+.streak-caption { font-size: .78rem; line-height: 1.3; color: var(--text-2); max-width: 15rem; }
+
+/* Série prolongée aujourd'hui : la flamme danse. */
+.streak-lit .flame { animation: flicker 2.2s ease-in-out infinite; }
+.streak-lit .flame-core { animation: flicker-core 1.4s ease-in-out infinite; }
+.streak-lit .streak-flame::before { animation: glow 2.2s ease-in-out infinite; }
+.streak-lit .streak-count { background: linear-gradient(180deg, #FFB547, #FF6A1F); -webkit-background-clip: text; background-clip: text; color: transparent; }
+/* Série en danger : la flamme vacille, l'invitation à agir ressort. */
+.streak-risk .flame { animation: flicker 1.1s ease-in-out infinite; opacity: .8; }
+.streak-risk .streak-caption { color: var(--streak-warn); font-weight: 600; }
+.streak-risk { box-shadow: var(--shadow), inset 0 0 0 1.5px color-mix(in srgb, var(--streak-warn) 45%, transparent); }
+.streak-off .flame { filter: grayscale(1); opacity: .4; }
+:root, :root[data-theme='clair'] { --streak-warn: #B4520E; }
+:root[data-theme='sombre'] { --streak-warn: #FFA25A; }
+:root[data-theme='rose'] { --streak-warn: #93300F; }
+
+/* Première validation du jour : embrasement + étincelles. */
+.is-igniting .flame { animation: ignite 1.2s cubic-bezier(.2, .8, .2, 1); }
+.is-igniting .streak-count { display: inline-block; animation: count-pop .9s cubic-bezier(.2, .8, .2, 1); }
+.is-igniting .streak-flame::before { animation: glow-burst 1.2s ease-out; }
+.spark { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px; border-radius: 50%; background: #FFC23D; opacity: 0; }
+.is-igniting .spark { animation: spark 1s ease-out forwards; }
+.is-igniting .s1 { --sx: -24px; --sy: -26px; }
+.is-igniting .s2 { --sx: 24px; --sy: -24px; animation-delay: .06s; }
+.is-igniting .s3 { --sx: -28px; --sy: 6px; animation-delay: .12s; background: #FF8A1F; }
+.is-igniting .s4 { --sx: 28px; --sy: 8px; animation-delay: .08s; background: #FF8A1F; }
+@keyframes flicker { 0%, 100% { transform: scale(1, 1) rotate(-2deg); } 25% { transform: scale(1.05, 1.1) rotate(2deg); } 50% { transform: scale(.97, 1.02) rotate(-1deg); } 75% { transform: scale(1.04, 1.08) rotate(1.5deg); } }
+@keyframes flicker-core { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(.85, 1.15); } }
+@keyframes glow { 0%, 100% { opacity: .55; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.15); } }
+@keyframes glow-burst { 0% { opacity: 0; transform: scale(.6); } 30% { opacity: 1; transform: scale(1.6); } 100% { opacity: .6; transform: scale(1); } }
+@keyframes ignite { 0% { transform: scale(.3); opacity: .3; filter: grayscale(1); } 40% { transform: scale(1.45); opacity: 1; filter: grayscale(0) drop-shadow(0 0 14px rgba(255, 140, 40, .9)); } 70% { transform: scale(.92); } 100% { transform: scale(1); } }
+@keyframes count-pop { 0% { transform: scale(1); } 35% { transform: scale(1.35); } 100% { transform: scale(1); } }
+@keyframes spark { 0% { opacity: 1; transform: translate(0, 0) scale(1); } 100% { opacity: 0; transform: translate(var(--sx), var(--sy)) scale(.3); } }
 .day-progress { display: grid; gap: 8px; }
 .day-progress-label { display: flex; justify-content: space-between; color: var(--text-2); font-size: .85rem; font-weight: 500; }
 
@@ -423,6 +467,9 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
   .brand .brand-mark { width: 26px; height: 26px; border-radius: 8px; }
   .content { padding: 8px 16px calc(150px + env(safe-area-inset-bottom)); }
   .page-intro h1, .today-head h1 { font-size: 2rem; }
+  .today-head { flex-wrap: wrap; align-items: flex-start; }
+  .today-head .streak { width: 100%; }
+  .streak-caption { max-width: none; }
   .period-grid { grid-template-columns: 1fr; }
   .calendar-panel, .selected-panel { padding: 14px; }
   .calendar-day { min-height: 52px; padding: 4px 2px; }

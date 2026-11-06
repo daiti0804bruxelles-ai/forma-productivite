@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Users, Flame, MoreHorizontal, GripVertical, ChevronDown, Plus, Repeat2, Settings, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo, Palette } from 'lucide-react'
+import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Users, MoreHorizontal, GripVertical, ChevronDown, Plus, Repeat2, Settings, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo, Palette } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
@@ -16,6 +16,7 @@ import { awardXp, awardCompletedGoals, isValidXpLedger, type XpLedger } from './
 import { rollOverTasks as advanceDay } from './xpSchedule'
 import type { Session } from '@supabase/supabase-js'
 import SwipeRow from './SwipeRow'
+import StreakFlame from './StreakFlame'
 import { useSortable, type SortGroups } from './useSortable'
 import QuickAdd, { type QuickAddPayload, type QuickAddType } from './QuickAdd'
 import AppearanceSettings from './AppearanceSettings'
@@ -425,7 +426,6 @@ useEffect(() => {
  const dayTotal=todaysTasks.length+data.habits.length
  const dayProgress=dayTotal?Math.round(dayDone/dayTotal*100):0
  const showFab=page==='dashboard'||page==='habits'||page==='tasks'||page==='calendar'
- const pageTitle=nav.find(n=>n.id===page)?.label
  const subtaskCount=(t:Task)=>{const list=t.subtasks||[];return list.length?`${list.filter(st=>st.done).length}/${list.length}`:''}
  const taskById=new Map(data.tasks.map(t=>[t.id,t]))
  const habitById=new Map(data.habits.map(h=>[h.id,h]))
@@ -458,9 +458,8 @@ useEffect(() => {
   <div className="main-wrap">
    <header className="topbar">
     <button type="button" className="brand mobile-only" onClick={()=>go('dashboard')} aria-label="Forma — revenir à l’accueil"><span className="brand-mark"><Check size={13} strokeWidth={3}/></span><span>forma</span></button>
-    <strong className="topbar-title desktop-only">{pageTitle}</strong>
     <div className="topbar-right">
-     <span className="today-pill desktop-only">{frDate(new Date(),{weekday:'long',day:'numeric',month:'long'})}</span>
+     {page!=='dashboard'&&<span className="today-pill desktop-only">{frDate(new Date(),{weekday:'long',day:'numeric',month:'long'})}</span>}
      <div data-forma-settings className="menu-anchor">
       <button type="button" className="icon-button" onClick={()=>setSettingsOpen(v=>!v)} aria-label="Paramètres de Forma" aria-expanded={settingsOpen} title="Paramètres"><Settings size={20}/></button>
       {settingsOpen&&<div role="menu" aria-label="Paramètres" className="menu-popover">
@@ -476,7 +475,7 @@ useEffect(() => {
     {page==='dashboard'&&<div className="today">
      <section className="today-head">
       <div><p className="today-date">{frDate(new Date(),{weekday:'long',day:'numeric',month:'long'})}</p><h1>Aujourd’hui</h1></div>
-      <span className="streak-chip" title="Jours actifs d’affilée"><Flame size={16}/>{activityStreak} jour{activityStreak!==1?'s':''}</span>
+      <StreakFlame streak={activityStreak} activeToday={activityDays.has(todayKey())}/>
      </section>
      {dayTotal>0&&<div className="day-progress">
       <div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>
