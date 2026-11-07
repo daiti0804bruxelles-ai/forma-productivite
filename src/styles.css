@@ -519,3 +519,34 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
   .modal-backdrop, .sheet-backdrop { align-items: end; padding: 0; }
   .modal, .sheet { width: 100%; max-height: 92dvh; border-radius: 26px 26px 0 0; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
 }
+
+/* Page Compétences : hexagone + fiche par domaine */
+.skills-hero { display: grid; place-items: center; padding: 8px 8px 0; margin-bottom: 14px; }
+.radar { width: min(100%, 360px); height: auto; overflow: visible; }
+.radar-ring, .radar-axis { fill: none; stroke: var(--line); stroke-width: 1; }
+.radar-area { fill: var(--accent); fill-opacity: .2; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.radar-dot { fill: var(--accent); }
+.radar-shape { transform-origin: 160px 138px; animation: radar-in .6s cubic-bezier(.2, .8, .2, 1); }
+.radar-label { cursor: pointer; outline: none; }
+.radar-label text { fill: var(--text-2); font-size: 12.5px; font-weight: 600; }
+.radar-label:hover text, .radar-label:focus-visible text { fill: var(--text); }
+@keyframes radar-in { from { transform: scale(.2); opacity: 0; } to { transform: none; opacity: 1; } }
+.domain-list { display: grid; margin-bottom: 8px; }
+.domain-row { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 4px; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); text-align: left; font-size: .95rem; }
+.domain-row:last-child { border-bottom: 0; }
+.domain-name { flex: 1; font-weight: 500; }
+.domain-meta { color: var(--text-2); font-size: .8rem; }
+.domain-row svg { color: var(--text-2); }
+.history-toggle { margin: 8px 0 12px; }
+.sheet-handle { display: grid; justify-items: center; padding: 4px 0 8px; touch-action: none; cursor: grab; }
+.skill-sheet { gap: 14px; }
+.skill-sheet-head { align-items: flex-start; justify-content: space-between; }
+.skill-sheet-head h2 { font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; }
+.skill-sub { margin-top: 4px; color: var(--text-2); font-size: .85rem; }
+.bar-thin { height: 5px; }
+.skill-list { display: grid; gap: 18px; margin-top: 6px; }
+.skill-row { display: grid; gap: 7px; }
+.skill-row-top { display: flex; justify-content: space-between; gap: 8px; font-size: .95rem; }
+.rank-mini { margin-left: 8px; color: var(--text-2); font-size: .72rem; font-weight: 600; }
+.skill-level { color: var(--text-2); font-size: .85rem; }
+.skill-xp { color: var(--text-2); font-size: .75rem; }

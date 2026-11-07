@@ -1,51 +1,110 @@
-import { useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import type { PointerEvent as ReactPointerEvent } from 'react'
+import { ChevronRight, X } from 'lucide-react'
 import { SKILL_GROUPS } from './skillsCatalog'
-import { domainProgress, skillProgress, rankFor, nextRank, type XpLedger } from './xpEngine'
+import { domainProgress, skillProgress, rankFor, type XpLedger, type XpProgress } from './xpEngine'
 
 const skillNameById: Record<string, string> = Object.fromEntries(SKILL_GROUPS.flatMap(group => group.skills.map(skill => [skill.id, skill.name])))
+const SHORT_NAMES: Record<string, string> = { appearance: 'Physique', health: 'Santé', knowledge: 'Savoir', ambition: 'Ambition', discipline: 'Discipline', relations: 'Relations' }
 
-const barStyle = { height: 7, background: 'rgba(120,120,128,.18)', borderRadius: 999, overflow: 'hidden' as const }
-function ProgressBar({ current, required }: { current: number; required: number }) {
-  return <div role="progressbar" aria-valuenow={current} aria-valuemin={0} aria-valuemax={required}
-    style={barStyle}><div style={{ width: `${Math.min(100, current / required * 100)}%`, height: '100%', background: 'var(--fill-border)', borderRadius: 999 }}/></div>
+const CX = 160, CY = 138, R = 88
+const angleOf = (i: number) => (-90 + i * 60) * Math.PI / 180
+const point = (i: number, ratio: number) => [CX + Math.cos(angleOf(i)) * R * ratio, CY + Math.sin(angleOf(i)) * R * ratio] as const
+const fmt = (n: number) => n.toLocaleString('fr-FR')
+const position = (p: XpProgress) => (p.level - 1) + p.current / p.required
+
+function Bar({ progress }: { progress: XpProgress }) {
+  return <div className="bar bar-thin" role="progressbar" aria-valuenow={progress.current} aria-valuemin={0} aria-valuemax={progress.required}>
+    <div style={{ width: `${Math.min(100, progress.current / progress.required * 100)}%` }} />
+  </div>
+}
+
+type Domain = { id: string; name: string; progress: XpProgress }
+
+/** Hexagone : une branche par domaine. L'échelle s'adapte pour que la forme reste lisible, même au début. */
+function Radar({ domains, onOpen }: { domains: Domain[]; onOpen: (id: string) => void }) {
+  const values = domains.map(d => position(d.progress))
+  const scale = Math.max(4, Math.ceil(Math.max(...values) * 1.25))
+  const ratios = values.map(v => Math.max(0.1, v / scale))
+  const polygon = ratios.map((r, i) => point(i, r).join(',')).join(' ')
+  const ring = (r: number) => domains.map((_, i) => point(i, r).join(',')).join(' ')
+  return <svg className="radar" viewBox="0 0 320 276" role="group" aria-label="Niveaux par domaine">
+    {[1 / 3, 2 / 3, 1].map(r => <polygon key={r} className="radar-ring" points={ring(r)} />)}
+    {domains.map((_, i) => { const [x, y] = point(i, 1); return <line key={i} className="radar-axis" x1={CX} y1={CY} x2={x} y2={y} /> })}
+    <g className="radar-shape">
+      <polygon className="radar-area" points={polygon} />
+      {ratios.map((r, i) => { const [x, y] = point(i, r); return <circle key={i} className="radar-dot" cx={x} cy={y} r={3.5} /> })}
+    </g>
+    {domains.map((d, i) => {
+      const [x, y] = point(i, 1.2)
+      const anchor = Math.abs(x - CX) < 4 ? 'middle' : x > CX ? 'start' : 'end'
+      const dy = y < CY - 4 ? -2 : y > CY + 4 ? 12 : 4
+      return <g key={d.id} className="radar-label" role="button" tabIndex={0} aria-label={`${d.name}, niveau ${d.progress.level}`}
+        onClick={() => onOpen(d.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(d.id) } }}>
+        <circle cx={x} cy={y + dy - 4} r={30} fill="transparent" />
+        <text x={x} y={y + dy} textAnchor={anchor}>{SHORT_NAMES[d.id] ?? d.name}</text>
+      </g>
+    })}
+  </svg>
+}
+
+function DomainSheet({ groupId, ledger, onClose }: { groupId: string; ledger?: XpLedger; onClose: () => void }) {
+  const group = SKILL_GROUPS.find(g => g.id === groupId)!
+  const domain = domainProgress(ledger, group.id)
+  const [drag, setDrag] = useState(0)
+  const start = useRef<number | null>(null)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+  const down = (e: ReactPointerEvent<HTMLDivElement>) => { start.current = e.clientY; e.currentTarget.setPointerCapture(e.pointerId) }
+  const move = (e: ReactPointerEvent<HTMLDivElement>) => { if (start.current !== null) setDrag(Math.max(0, e.clientY - start.current)) }
+  const up = () => { if (start.current === null) return; start.current = null; if (drag > 90) onClose(); else setDrag(0) }
+  const rank = rankFor(domain.level)
+  return <div className="sheet-backdrop" onMouseDown={onClose}>
+    <div className="sheet skill-sheet" role="dialog" aria-modal="true" aria-label={group.name} onMouseDown={e => e.stopPropagation()}
+      style={drag ? { transform: `translateY(${drag}px)`, transition: 'none' } : undefined}>
+      <div className="sheet-handle" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}><div className="sheet-grabber" aria-hidden="true" /></div>
+      <div className="sheet-head skill-sheet-head">
+        <div>
+          <h2>{group.name}</h2>
+          <p className="skill-sub">Niv. {domain.level}{rank ? ` · ${rank}` : ''} · {fmt(domain.current)} / {fmt(domain.required)} XP</p>
+        </div>
+        <button type="button" className="icon-button" aria-label="Fermer" onClick={onClose}><X size={20} /></button>
+      </div>
+      <Bar progress={domain} />
+      <div className="skill-list">{group.skills.map(skill => {
+        const progress = skillProgress(ledger, skill.id)
+        const skillRank = rankFor(progress.level)
+        return <div key={skill.id} className="skill-row">
+          <div className="skill-row-top"><span>{skill.name}{skillRank && <small className="rank-mini">{skillRank}</small>}</span><span className="skill-level">Niv. {progress.level}</span></div>
+          <Bar progress={progress} />
+          <div className="skill-xp">{fmt(progress.current)} / {fmt(progress.required)} XP</div>
+        </div>
+      })}</div>
+    </div>
+  </div>
 }
 
 export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
-  const [expanded, setExpanded] = useState<string[]>([])
+  const [openId, setOpenId] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
   const recentEvents = [...(ledger?.events ?? [])].reverse().slice(0, 12)
+  const domains: Domain[] = SKILL_GROUPS.map(g => ({ id: g.id, name: g.name, progress: domainProgress(ledger, g.id) }))
   return <section>
-    <div className="page-intro"><div>
-      <h1>Mes compétences</h1><p>Rangs : Apprenti (niv. 5), Initié (10), Confirmé (20), Maître (40), Légende (60).</p></div></div>
-    <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr)',gap:16,alignItems:'start'}}>
-      <div style={{display:'grid',gap:10}}>
-      {SKILL_GROUPS.map(group => {
-        const domain = domainProgress(ledger, group.id)
-        const open=expanded.includes(group.id)
-        return <section className="panel" key={group.id} style={{padding:0,overflow:'hidden'}}>
-          <button type="button" aria-expanded={open} aria-controls={`skills-${group.id}`} onClick={()=>setExpanded(previous=>previous.includes(group.id)?previous.filter(id=>id!==group.id):[...previous,group.id])} style={{display:'block',width:'100%',border:0,background:'transparent',color:'inherit',textAlign:'left',padding:'18px 18px 16px',cursor:'pointer'}}>
-            <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:10,marginBottom:12}}>
-              <strong style={{fontSize:14}}>{group.name}</strong>
-              <span style={{display:'flex',alignItems:'center',gap:10,fontSize:12,opacity:.8}}>Niv. {domain.level}<ChevronDown size={17} style={{transform:open?'rotate(180deg)':'none',transition:'transform .15s'}}/></span>
-            </div>
-            <ProgressBar current={domain.current} required={domain.required}/>
-          </button>
-          {open&&<div id={`skills-${group.id}`} style={{padding:'0 18px 20px',borderTop:'1px solid rgba(120,120,128,.12)'}}>
-            <p style={{fontSize:12,opacity:.7,margin:'14px 0 18px'}}>{domain.xp.toLocaleString('fr-FR')} XP dans ce domaine · {domain.current.toLocaleString('fr-FR')} / {domain.required} vers le prochain niveau</p>
-            <div style={{display:'grid',gap:18}}>{group.skills.map(skill=>{
-              const progress=skillProgress(ledger,skill.id)
-              return <div key={skill.id}>
-                <div style={{display:'flex',justifyContent:'space-between',gap:8,fontSize:13,marginBottom:6}}><span>{skill.name}{rankFor(progress.level)&&<span className="rank-badge">{rankFor(progress.level)}</span>}</span><strong>Niv. {progress.level}</strong></div>
-                <div style={{fontSize:11,opacity:.7,marginBottom:7}}>{progress.xp.toLocaleString('fr-FR')} XP · {progress.current} / {progress.required} XP{nextRank(progress.level)?` · ${nextRank(progress.level)!.name} au niveau ${nextRank(progress.level)!.level}`:''}</div>
-                <ProgressBar current={progress.current} required={progress.required}/>
-              </div>
-            })}</div>
-          </div>}
-        </section>
-      })}
-      </div>
-    </div>
-    <section className="panel" style={{ marginTop: 20, padding: 20 }}>
+    <div className="page-intro"><div><h1>Compétences</h1></div></div>
+    <div className="panel skills-hero"><Radar domains={domains} onOpen={setOpenId} /></div>
+    <div className="domain-list">{domains.map(d => {
+      const rank = rankFor(d.progress.level)
+      return <button key={d.id} type="button" className="domain-row" onClick={() => setOpenId(d.id)}>
+        <span className="domain-name">{d.name}</span>
+        <span className="domain-meta">Niv. {d.progress.level}{rank ? ` · ${rank}` : ''}</span>
+        <ChevronRight size={16} aria-hidden="true" />
+      </button>
+    })}</div>
+    <button type="button" className="text-action history-toggle" aria-expanded={showHistory} onClick={() => setShowHistory(!showHistory)}>{showHistory ? 'Masquer l’historique XP' : 'Historique XP'}</button>
+    {showHistory && <section className="panel" style={{ marginTop: 8, padding: 20 }}>
       <h2 style={{ fontSize: 17, margin: '0 0 6px' }}>Historique XP</h2>
       <p style={{ fontSize: 13, opacity: .7, margin: '0 0 18px' }}>12 dernières opérations enregistrées. Les pénalités sont affichées même si ton niveau reste protégé.</p>
       {recentEvents.length === 0
@@ -65,6 +124,7 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
             </div>
           })}
         </div>}
-    </section>
+    </section>}
+    {openId && <DomainSheet groupId={openId} ledger={ledger} onClose={() => setOpenId(null)} />}
   </section>
 }
