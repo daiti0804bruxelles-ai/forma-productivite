@@ -24,7 +24,7 @@ type Domain = { id: string; name: string; progress: XpProgress }
 /** Hexagone : une branche par domaine. L'échelle s'adapte pour que la forme reste lisible, même au début. */
 function Radar({ domains, onOpen }: { domains: Domain[]; onOpen: (id: string) => void }) {
   const values = domains.map(d => position(d.progress))
-  const scale = Math.max(4, Math.ceil(Math.max(...values) * 1.25))
+  const scale = Math.max(2, Math.ceil(Math.max(...values) * 1.25))
   const ratios = values.map(v => Math.max(0.1, v / scale))
   const polygon = ratios.map((r, i) => point(i, r).join(',')).join(' ')
   const ring = (r: number) => domains.map((_, i) => point(i, r).join(',')).join(' ')
