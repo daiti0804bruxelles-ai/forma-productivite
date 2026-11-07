@@ -52,18 +52,55 @@ function DomainSheet({ groupId, ledger, onClose }: { groupId: string; ledger?: X
   const group = SKILL_GROUPS.find(g => g.id === groupId)!
   const domain = domainProgress(ledger, group.id)
   const [drag, setDrag] = useState(0)
-  const start = useRef<number | null>(null)
+  const sheetRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef(0)
+  const mouseStart = useRef<number | null>(null)
+  const setOffset = (value: number) => { dragRef.current = value; setDrag(value) }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
-  const down = (e: ReactPointerEvent<HTMLDivElement>) => { start.current = e.clientY; e.currentTarget.setPointerCapture(e.pointerId) }
-  const move = (e: ReactPointerEvent<HTMLDivElement>) => { if (start.current !== null) setDrag(Math.max(0, e.clientY - start.current)) }
-  const up = () => { if (start.current === null) return; start.current = null; if (drag > 90) onClose(); else setDrag(0) }
+  // Tactile : glisser n'importe où sur la fiche vers le bas la ferme (quand son contenu est tout en haut).
+  useEffect(() => {
+    const el = sheetRef.current
+    if (!el) return
+    let startY: number | null = null
+    let dragging = false
+    const onStart = (e: TouchEvent) => { startY = e.touches.length === 1 ? e.touches[0].clientY : null; dragging = false }
+    const onMove = (e: TouchEvent) => {
+      if (startY === null) return
+      const dy = e.touches[0].clientY - startY
+      if (!dragging) {
+        if (dy > 8 && el.scrollTop <= 0) dragging = true
+        else if (dy < -8) { startY = null; return }
+        else return
+      }
+      e.preventDefault()
+      setOffset(Math.max(0, dy))
+    }
+    const onEnd = () => {
+      if (dragging) { if (dragRef.current > 90) onClose(); else setOffset(0) }
+      startY = null; dragging = false
+    }
+    el.addEventListener('touchstart', onStart, { passive: true })
+    el.addEventListener('touchmove', onMove, { passive: false })
+    el.addEventListener('touchend', onEnd)
+    el.addEventListener('touchcancel', onEnd)
+    return () => {
+      el.removeEventListener('touchstart', onStart)
+      el.removeEventListener('touchmove', onMove)
+      el.removeEventListener('touchend', onEnd)
+      el.removeEventListener('touchcancel', onEnd)
+    }
+  }, [onClose])
+  // Souris (ordinateur) : on glisse la petite barre.
+  const down = (e: ReactPointerEvent<HTMLDivElement>) => { if (e.pointerType !== 'mouse') return; mouseStart.current = e.clientY; e.currentTarget.setPointerCapture(e.pointerId) }
+  const move = (e: ReactPointerEvent<HTMLDivElement>) => { if (mouseStart.current !== null) setOffset(Math.max(0, e.clientY - mouseStart.current)) }
+  const up = () => { if (mouseStart.current === null) return; mouseStart.current = null; if (dragRef.current > 90) onClose(); else setOffset(0) }
   const rank = rankFor(domain.level)
   return <div className="sheet-backdrop" onMouseDown={onClose}>
-    <div className="sheet skill-sheet" role="dialog" aria-modal="true" aria-label={group.name} onMouseDown={e => e.stopPropagation()}
+    <div ref={sheetRef} className="sheet skill-sheet" role="dialog" aria-modal="true" aria-label={group.name} onMouseDown={e => e.stopPropagation()}
       style={drag ? { transform: `translateY(${drag}px)`, transition: 'none' } : undefined}>
       <div className="sheet-handle" onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up}><div className="sheet-grabber" aria-hidden="true" /></div>
       <div className="sheet-head skill-sheet-head">

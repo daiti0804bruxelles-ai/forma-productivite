@@ -538,8 +538,8 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .domain-meta { color: var(--text-2); font-size: .8rem; }
 .domain-row svg { color: var(--text-2); }
 .history-toggle { margin: 8px 0 12px; }
-.sheet-handle { display: grid; justify-items: center; padding: 4px 0 8px; touch-action: none; cursor: grab; }
-.skill-sheet { gap: 14px; }
+.sheet-handle { display: grid; justify-items: center; padding: 10px 0 14px; margin-top: -6px; touch-action: none; cursor: grab; }
+.skill-sheet { gap: 14px; transition: transform .2s ease; overscroll-behavior: contain; }
 .skill-sheet-head { align-items: flex-start; justify-content: space-between; }
 .skill-sheet-head h2 { font-size: 1.25rem; font-weight: 700; letter-spacing: -.01em; }
 .skill-sub { margin-top: 4px; color: var(--text-2); font-size: .85rem; }
