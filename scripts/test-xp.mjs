@@ -11,7 +11,7 @@ const bundle = await build({
   logLevel: 'silent',
 })
 const url = 'data:text/javascript;base64,' + Buffer.from(bundle.outputFiles[0].text).toString('base64')
-const { awardXp, penalizeXp, skillProgress, domainProgress, isValidXpLedger, awardCompletedGoals } = await import(url)
+const { awardXp, penalizeXp, skillProgress, domainProgress, isValidXpLedger, awardCompletedGoals, totalXpForLevel, progressFromEvents, rankFor, nextRank, xpForDifficulty } = await import(url)
 const skill = 'consistency'
 let ledger = awardXp(undefined, 'habit:h1:2026-11-01', 'habit', [skill], 10)
 assert.equal(ledger.events.length, 1)
@@ -42,4 +42,25 @@ assert.deepEqual(goalLedger.events[0].skillIds,['consistency','organization'])
 assert.equal(domainProgress(goalLedger,'discipline').xp,120,'domain gets 20% of XP per selected skill')
 assert.equal(awardCompletedGoals(goalLedger,[previousGoal],[completedGoal],g=>g.percent).events.length,1,
   'goal XP must not be awarded twice')
+// Courbe RPG : 50, 75, 100… XP par niveau
+assert.equal(totalXpForLevel(1), 0)
+assert.equal(totalXpForLevel(2), 50)
+assert.equal(totalXpForLevel(3), 125)
+assert.equal(totalXpForLevel(10), 1350)
+assert.equal(progressFromEvents([{ amountPerSkill: 49 }]).level, 1)
+assert.equal(progressFromEvents([{ amountPerSkill: 50 }]).level, 2)
+assert.deepEqual(progressFromEvents([{ amountPerSkill: 130 }]), { xp: 130, level: 3, current: 5, required: 100 })
+assert.equal(progressFromEvents([{ amountPerSkill: 130 }, { amountPerSkill: -5 }, { amountPerSkill: -5 }]).xp, 125, 'plancher du niveau 3')
+// Rangs
+assert.equal(rankFor(4), null)
+assert.equal(rankFor(5), 'Apprenti')
+assert.equal(rankFor(19), 'Initié')
+assert.equal(rankFor(20), 'Confirmé')
+assert.equal(rankFor(40), 'Maître')
+assert.equal(rankFor(75), 'Légende')
+assert.equal(nextRank(12).name, 'Confirmé')
+// Difficultés
+assert.equal(xpForDifficulty('facile'), 5)
+assert.equal(xpForDifficulty(undefined), 10)
+assert.equal(xpForDifficulty('epique'), 40)
 console.log('Tests XP réussis : gains, doublons, pénalités, protection des niveaux et validation.')

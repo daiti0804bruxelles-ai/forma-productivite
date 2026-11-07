@@ -367,6 +367,32 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .schedule-subtitle { margin-bottom: 4px; color: var(--text-2); font-size: .8rem; font-weight: 600; }
 .selected-panel .event-row, .selected-panel .add-row { padding-left: 0; padding-right: 0; }
 
+/* ───────────── XP : compétences, difficulté, jours, montée de niveau ───────────── */
+.chip small { font-size: .75em; font-weight: 600; opacity: .7; margin-left: 2px; }
+.chip:disabled { opacity: .4; }
+.skill-picker { display: grid; gap: 10px; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); }
+.skill-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .9rem; font-weight: 600; color: var(--text); }
+.skill-picker-head small { color: var(--text-2); font-weight: 500; margin-left: 4px; }
+.skill-chip { display: inline-flex; align-items: center; gap: 6px; }
+.skill-groups { display: grid; gap: 4px; }
+.skill-group-head { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 40px; padding: 0 2px; border: 0; background: transparent; color: var(--text); font-size: .9rem; font-weight: 500; text-align: left; }
+.skill-group .chips { padding: 2px 0 10px; }
+.day-picker { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.day-chip { min-height: 42px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--text-2); font-weight: 600; font-size: .9rem; }
+.day-chip[aria-pressed='true'] { border-color: var(--fill-border); background: var(--accent-soft); color: var(--accent-ink); }
+.modal-form > .field > span, .sheet .field > span { font-size: .8rem; font-weight: 600; color: var(--text-2); }
+.check-row.is-rest .row-copy > span { color: var(--text-2); }
+.check-row.is-rest .round-check { border-style: dashed; }
+.rank-badge { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--accent-soft); color: var(--accent-ink); font-size: .7rem; font-weight: 700; vertical-align: 1px; }
+.levelup { position: fixed; z-index: 60; left: 0; right: 0; margin: 0 auto; width: max-content; top: calc(14px + env(safe-area-inset-top)); display: flex; align-items: center; gap: 12px; max-width: min(92vw, 420px); padding: 10px 18px 10px 10px; border-radius: 18px; background: var(--surface); color: var(--text); box-shadow: var(--shadow-pop), 0 0 0 1.5px var(--fill-border); animation: levelup-in 3.2s cubic-bezier(.2, .8, .2, 1) forwards; pointer-events: none; }
+.levelup > span:last-child { display: grid; gap: 2px; min-width: 0; }
+.levelup strong { font-size: .95rem; }
+.levelup small { color: var(--text-2); font-size: .8rem; }
+.levelup-icon { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 12px; background: var(--fill); color: var(--on-fill); border: 1.5px solid var(--fill-border); }
+.levelup.is-rank .levelup-icon { background: linear-gradient(135deg, #FFC23D, #FF7A1F); border-color: #FF8A1F; color: #3A1A05; }
+.levelup.is-rank { box-shadow: var(--shadow-pop), 0 0 0 1.5px #FF8A1F; }
+@keyframes levelup-in { 0% { opacity: 0; transform: translateY(-16px) scale(.96); } 10%, 85% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-8px); } }
+
 /* ───────────── Réglages ───────────── */
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 60px; padding: 8px 16px; }
 .settings-row > span { display: grid; gap: 2px; }
