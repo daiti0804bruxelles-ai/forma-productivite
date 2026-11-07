@@ -90,12 +90,20 @@ export function skillProgress(ledger: XpLedger | undefined, skillId: SkillId): X
   return progressFromEvents((ledger?.events ?? []).filter(event => event.skillIds.includes(skillId)))
 }
 
+/**
+ * Un domaine reflète la moyenne de ses compétences : son niveau est la moyenne (arrondie vers le bas)
+ * des niveaux de ses compétences, donc il ne peut pas redescendre. La barre montre où il en est
+ * jusqu'au niveau suivant (0 à 100). Une compétence jamais travaillée compte comme niveau 1.
+ */
 export function domainProgress(ledger: XpLedger | undefined, groupId: string): XpProgress {
   const group = SKILL_GROUPS.find(group => group.id === groupId)
   if (!group) return progressFromEvents([])
-  return progressFromEvents((ledger?.events ?? []).map(event => ({
-    amountPerSkill: event.amountPerSkill * 0.2 * group.skills.filter(skill => event.skillIds.includes(skill.id)).length,
-  })))
+  const skills = group.skills.map(skill => skillProgress(ledger, skill.id))
+  const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
+  const level = Math.floor(mean(skills.map(skill => skill.level)))
+  const exact = mean(skills.map(skill => skill.level + skill.current / skill.required))
+  const ratio = Math.min(0.99, Math.max(0, exact - level))
+  return { xp: Math.round(mean(skills.map(skill => skill.xp))), level, current: Math.round(ratio * 100), required: 100 }
 }
 
 export type GoalXpSnapshot = {

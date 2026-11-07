@@ -39,7 +39,10 @@ const goalLedger=awardCompletedGoals(undefined,[previousGoal],[completedGoal],g=
 assert.equal(goalLedger.events.length,1)
 assert.equal(goalLedger.events[0].amountPerSkill,300)
 assert.deepEqual(goalLedger.events[0].skillIds,['consistency','organization'])
-assert.equal(domainProgress(goalLedger,'discipline').xp,120,'domain gets 20% of XP per selected skill')
+assert.equal(domainProgress(goalLedger,'discipline').xp,200,'domain xp = moyenne de ses compétences (600 / 3)')
+assert.equal(domainProgress(goalLedger,'discipline').level,3,'niveaux 4, 4 et 1 : moyenne 3')
+assert.equal(domainProgress(undefined,'discipline').level,1)
+assert.equal(domainProgress(penalizeXp(goalLedger,'late-task:x:2026-11-04',['consistency'],-5),'discipline').level,3,'une pénalité ne fait pas baisser le niveau du domaine')
 assert.equal(awardCompletedGoals(goalLedger,[previousGoal],[completedGoal],g=>g.percent).events.length,1,
   'goal XP must not be awarded twice')
 // Courbe RPG : 50, 75, 100… XP par niveau

@@ -106,7 +106,7 @@ function DomainSheet({ groupId, ledger, onClose }: { groupId: string; ledger?: X
       <div className="sheet-head skill-sheet-head">
         <div>
           <h2>{group.name}</h2>
-          <p className="skill-sub">Niv. {domain.level}{rank ? ` · ${rank}` : ''} · {fmt(domain.current)} / {fmt(domain.required)} XP</p>
+          <p className="skill-sub">Niv. {domain.level}{rank ? ` · ${rank}` : ''} · moyenne de ses compétences</p>
         </div>
         <button type="button" className="icon-button" aria-label="Fermer" onClick={onClose}><X size={20} /></button>
       </div>
@@ -129,9 +129,16 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
   const [showHistory, setShowHistory] = useState(false)
   const recentEvents = [...(ledger?.events ?? [])].reverse().slice(0, 12)
   const domains: Domain[] = SKILL_GROUPS.map(g => ({ id: g.id, name: g.name, progress: domainProgress(ledger, g.id) }))
+  // Lecture rapide : où tu es le plus fort, où il reste le plus à faire (affichée seulement si l'écart est net).
+  const scores = domains.map(d => ({ d, score: position(d.progress) }))
+  const best = Math.max(...scores.map(x => x.score)), worst = Math.min(...scores.map(x => x.score))
+  const showInsight = best - worst >= 0.5
+  const label = (pick: number) => scores.filter(x => x.score === pick).slice(0, 2).map(x => SHORT_NAMES[x.d.id] ?? x.d.name).join(' · ')
   return <section>
     <div className="page-intro"><div><h1>Compétences</h1></div></div>
-    <div className="panel skills-hero"><Radar domains={domains} onOpen={setOpenId} /></div>
+    <div className="panel skills-hero"><Radar domains={domains} onOpen={setOpenId} />
+      {showInsight && <p className="skills-insight"><span>Point fort <strong>{label(best)}</strong></span><span>À travailler <strong>{label(worst)}</strong></span></p>}
+    </div>
     <div className="domain-list">{domains.map(d => {
       const rank = rankFor(d.progress.level)
       return <button key={d.id} type="button" className="domain-row" onClick={() => setOpenId(d.id)}>
