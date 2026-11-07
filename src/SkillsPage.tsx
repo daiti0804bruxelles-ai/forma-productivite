@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { SKILL_GROUPS } from './skillsCatalog'
-import { domainProgress, skillProgress, type XpLedger } from './xpEngine'
+import { domainProgress, skillProgress, rankFor, nextRank, type XpLedger } from './xpEngine'
 
 const skillNameById: Record<string, string> = Object.fromEntries(SKILL_GROUPS.flatMap(group => group.skills.map(skill => [skill.id, skill.name])))
 
@@ -16,7 +16,7 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
   const recentEvents = [...(ledger?.events ?? [])].reverse().slice(0, 12)
   return <section>
     <div className="page-intro"><div>
-      <h1>Mes compétences</h1></div></div>
+      <h1>Mes compétences</h1><p>Rangs : Apprenti (niv. 5), Initié (10), Confirmé (20), Maître (40), Légende (60).</p></div></div>
     <div style={{display:'grid',gridTemplateColumns:'minmax(0,1fr)',gap:16,alignItems:'start'}}>
       <div style={{display:'grid',gap:10}}>
       {SKILL_GROUPS.map(group => {
@@ -35,8 +35,8 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
             <div style={{display:'grid',gap:18}}>{group.skills.map(skill=>{
               const progress=skillProgress(ledger,skill.id)
               return <div key={skill.id}>
-                <div style={{display:'flex',justifyContent:'space-between',gap:8,fontSize:13,marginBottom:6}}><span>{skill.name}</span><strong>Niv. {progress.level}</strong></div>
-                <div style={{fontSize:11,opacity:.7,marginBottom:7}}>{progress.xp.toLocaleString('fr-FR')} XP · {progress.current} / {progress.required} XP</div>
+                <div style={{display:'flex',justifyContent:'space-between',gap:8,fontSize:13,marginBottom:6}}><span>{skill.name}{rankFor(progress.level)&&<span className="rank-badge">{rankFor(progress.level)}</span>}</span><strong>Niv. {progress.level}</strong></div>
+                <div style={{fontSize:11,opacity:.7,marginBottom:7}}>{progress.xp.toLocaleString('fr-FR')} XP · {progress.current} / {progress.required} XP{nextRank(progress.level)?` · ${nextRank(progress.level)!.name} au niveau ${nextRank(progress.level)!.level}`:''}</div>
                 <ProgressBar current={progress.current} required={progress.required}/>
               </div>
             })}</div>

@@ -42,4 +42,7 @@ assert.deepEqual(multiDay.xpLedger.events.filter(e=>e.source==='penalty').map(e=
   'a completed recurring day must not be penalized even across multiple offline days')
 const untouched=rollOverTasks({habits:[],tasks:[],completedHabits:{}},'2026-11-03')
 assert.equal(untouched.xpLedger,undefined,'no retrospective XP penalty on first launch')
+// 2026-11-02 est un lundi (1), 2026-11-03 un mardi (2)
+const rest=rollOverTasks({habits:[{id:'hw',skillIds,createdOn:'2026-11-01',days:[2,4]}],tasks:[],completedHabits:{},lastPenaltyCheckDate:'2026-11-02'},'2026-11-04')
+assert.deepEqual(rest.xpLedger.events.map(e=>e.key),['missed-habit:hw:2026-11-03'],'pas de pénalité les jours de repos prévus')
 console.log('Tests de calendrier XP réussis : échéances, journées manquées, récurrence, création, idempotence.')

@@ -1,7 +1,7 @@
 import { penalizeXp, type XpLedger } from './xpEngine'
 import type { SkillId } from './skillsCatalog'
 
-export type ScheduledHabit = { id: string; skillIds?: SkillId[]; createdOn?: string }
+export type ScheduledHabit = { id: string; skillIds?: SkillId[]; createdOn?: string; days?: number[] }
 export type ScheduledTask = { id: string; date: string; done: boolean; recurring?: boolean; skillIds?: SkillId[]; dueDate?: string; createdOn?: string }
 export type ScheduledData<H extends ScheduledHabit, T extends ScheduledTask> = {
   habits: H[]
@@ -30,6 +30,8 @@ export function rollOverTasks<H extends ScheduledHabit, T extends ScheduledTask>
       const overdueDay = keyOf(nextDay(day))
       for (const habit of value.habits) {
         if (habit.createdOn && habit.createdOn > key) continue
+        // Jour de repos prévu : pas de pénalité.
+        if (habit.days && habit.days.length && !habit.days.includes(day.getDay())) continue
         if (!(value.completedHabits[key] || []).includes(habit.id)) {
           xpLedger = penalizeXp(xpLedger, `missed-habit:${habit.id}:${key}`, habit.skillIds, -5)
         }

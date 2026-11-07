@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { X } from 'lucide-react'
+import SkillSelector from './SkillSelector'
+import { suggestSkills } from './skillSuggest'
+import type { SkillId } from './skillsCatalog'
+import { DIFFICULTIES, type Difficulty } from './xpEngine'
+import { WEEKDAYS, toggleWeekday, isScheduledOn } from './weekdays'
 
 export type QuickAddType = 'task' | 'habit' | 'event'
 type Period = 'Matin' | 'Après-midi' | 'Soir'
 export type QuickAddPayload =
-  | { type: 'task'; title: string; category: string; date: string }
-  | { type: 'habit'; title: string; category: string; period: Period }
+  | { type: 'task'; title: string; category: string; date: string; difficulty: Difficulty; skillIds: SkillId[] }
+  | { type: 'habit'; title: string; category: string; period: Period; difficulty: Difficulty; skillIds: SkillId[]; days?: number[] }
   | { type: 'event'; title: string; category: string; date: string; time: string; endTime: string }
 
 type Props = {
@@ -36,6 +41,16 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
   const [period, setPeriod] = useState<Period>('Matin')
   const [time, setTime] = useState('09:00')
   const [endTime, setEndTime] = useState('10:00')
+  const [difficulty, setDifficulty] = useState<Difficulty>('moyen')
+  const [skills, setSkills] = useState<SkillId[]>([])
+  const [skillsTouched, setSkillsTouched] = useState(false)
+  const [days, setDays] = useState<number[]>([])
+
+  // Tant que tu n'as pas modifié les compétences, Forma les propose d'après le nom.
+  useEffect(() => {
+    if (skillsTouched || type === 'event') return
+    setSkills(title.trim() ? suggestSkills(title, category, type === 'habit' ? 'habit' : 'task') : [])
+  }, [title, category, type, skillsTouched])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -48,8 +63,8 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
     e.preventDefault()
     const clean = title.trim()
     if (!clean || invalidTime) return
-    if (type === 'task') onSubmit({ type, title: clean, category, date })
-    else if (type === 'habit') onSubmit({ type, title: clean, category, period })
+    if (type === 'task') onSubmit({ type, title: clean, category, date, difficulty, skillIds: skills })
+    else if (type === 'habit') onSubmit({ type, title: clean, category, period, difficulty, skillIds: skills, days: days.length ? days : undefined })
     else onSubmit({ type, title: clean, category, date, time, endTime })
   }
   const chooseDay = (value: string) => { setDate(value); setPickDate(false) }
@@ -69,10 +84,16 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
         <input autoFocus required maxLength={100} value={title} onChange={e => setTitle(e.target.value)} placeholder={PLACEHOLDERS[type]} enterKeyHint="done" />
       </label>
 
-      {type === 'habit' ? <div className="field">
-        <span>Moment de la journée</span>
-        <div className="chips">{PERIODS.map(p => <Chip key={p} selected={period === p} onClick={() => setPeriod(p)}>{p}</Chip>)}</div>
-      </div> : <div className="field">
+      {type === 'habit' ? <>
+        <div className="field">
+          <span>Moment de la journée</span>
+          <div className="chips">{PERIODS.map(p => <Chip key={p} selected={period === p} onClick={() => setPeriod(p)}>{p}</Chip>)}</div>
+        </div>
+        <div className="field">
+          <span>Jours {days.length ? '' : '· tous les jours'}</span>
+          <div className="day-picker">{WEEKDAYS.map(w => <button key={w.day} type="button" className="day-chip" aria-label={w.name} aria-pressed={isScheduledOn(days, w.day)} onClick={() => setDays(toggleWeekday(days, w.day))}>{w.letter}</button>)}</div>
+        </div>
+      </> : <div className="field">
         <span>Quand</span>
         <div className="chips">
           <Chip selected={!pickDate && date === today} onClick={() => chooseDay(today)}>Aujourd’hui</Chip>
@@ -87,6 +108,14 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
         <label className="field"><span>Fin</span><input type="time" required value={endTime} onChange={e => setEndTime(e.target.value)} /></label>
       </div>}
       {invalidTime && <p role="alert" className="form-error">L’heure de fin doit être après l’heure de début.</p>}
+
+      {type !== 'event' && <>
+        <div className="field">
+          <span>Difficulté</span>
+          <div className="chips">{DIFFICULTIES.map(d => <button key={d.id} type="button" className="chip" aria-pressed={difficulty === d.id} onClick={() => setDifficulty(d.id)}>{d.label} <small>{d.xp} XP</small></button>)}</div>
+        </div>
+        <SkillSelector value={skills} onChange={next => { setSkillsTouched(true); setSkills(next) }} hint={skillsTouched ? undefined : 'Suggestion automatique d’après le nom.'} />
+      </>}
 
       <div className="field">
         <span>Catégorie</span>

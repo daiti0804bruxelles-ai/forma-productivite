@@ -10,6 +10,38 @@ export type XpEvent = {
 }
 export type XpLedger = { events: XpEvent[] }
 
+/** Difficulté d'une tâche ou d'une habitude : XP gagnée par compétence choisie. */
+export type Difficulty = 'facile' | 'moyen' | 'difficile' | 'epique'
+export const DIFFICULTIES: readonly { id: Difficulty; label: string; xp: number }[] = [
+  { id: 'facile', label: 'Facile', xp: 5 },
+  { id: 'moyen', label: 'Moyen', xp: 10 },
+  { id: 'difficile', label: 'Difficile', xp: 20 },
+  { id: 'epique', label: 'Épique', xp: 40 },
+]
+export const isDifficulty = (value: unknown): value is Difficulty => DIFFICULTIES.some(d => d.id === value)
+export const xpForDifficulty = (difficulty?: Difficulty) => (DIFFICULTIES.find(d => d.id === difficulty) ?? DIFFICULTIES[1]).xp
+export const difficultyLabel = (difficulty?: Difficulty) => (DIFFICULTIES.find(d => d.id === difficulty) ?? DIFFICULTIES[1]).label
+/** Au-delà de 3 compétences, une même action rapporterait trop d'XP. */
+export const MAX_SKILLS_PER_ITEM = 3
+
+/** Courbe RPG : 50 XP pour le niveau 2, puis 25 XP de plus à chaque niveau (75, 100, 125…). */
+export const xpToNextLevel = (level: number) => 50 + 25 * (level - 1)
+export function totalXpForLevel(level: number) {
+  const steps = Math.max(0, level - 1)
+  return 50 * steps + 25 * steps * (steps - 1) / 2
+}
+
+/** Rangs d'une compétence. */
+export const RANKS: readonly { level: number; name: string }[] = [
+  { level: 5, name: 'Apprenti' },
+  { level: 10, name: 'Initié' },
+  { level: 20, name: 'Confirmé' },
+  { level: 40, name: 'Maître' },
+  { level: 60, name: 'Légende' },
+]
+export const rankFor = (level: number) => [...RANKS].reverse().find(rank => level >= rank.level)?.name ?? null
+export const nextRank = (level: number) => RANKS.find(rank => rank.level > level) ?? null
+
 // Les gains sont immuables : décocher, modifier ou supprimer une action
 // ne permet pas de gagner plusieurs fois les XP de la même réalisation.
 export function awardXp(
@@ -42,15 +74,16 @@ export function penalizeXp(
 }
 
 export type XpProgress = { xp: number; level: number; current: number; required: number }
-const XP_PER_LEVEL = 100
 export function progressFromEvents(events: readonly { amountPerSkill: number }[]): XpProgress {
   let xp = 0
   let highestLevel = 1
   for (const event of events) {
-    xp = Math.max((highestLevel - 1) * XP_PER_LEVEL, xp + event.amountPerSkill)
-    highestLevel = Math.max(highestLevel, Math.floor(xp / XP_PER_LEVEL) + 1)
+    // Une pénalité ne fait jamais redescendre sous le niveau déjà atteint.
+    xp = Math.max(totalXpForLevel(highestLevel), xp + event.amountPerSkill)
+    while (xp >= totalXpForLevel(highestLevel + 1)) highestLevel++
   }
-  return { xp, level: highestLevel, current: xp - (highestLevel - 1) * XP_PER_LEVEL, required: XP_PER_LEVEL }
+  const base = totalXpForLevel(highestLevel)
+  return { xp, level: highestLevel, current: xp - base, required: xpToNextLevel(highestLevel) }
 }
 
 export function skillProgress(ledger: XpLedger | undefined, skillId: SkillId): XpProgress {
