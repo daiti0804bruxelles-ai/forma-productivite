@@ -552,3 +552,24 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .skill-xp { color: var(--text-2); font-size: .75rem; }
 .skills-insight { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; padding: 4px 8px 16px; color: var(--text-2); font-size: .82rem; }
 .skills-insight strong { color: var(--text); font-weight: 600; margin-left: 4px; }
+
+/* Synchronisation, fuseau horaire et sauvegardes automatiques */
+.sync-pill { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--surface-2); color: var(--text-2); font-size: .75rem; font-weight: 600; white-space: nowrap; animation: fade-in .18s ease; }
+.sync-pill.is-ok { color: var(--success); }
+.sync-pill.is-warn { color: var(--text); background: var(--accent-soft); }
+.sync-pill.is-error { color: var(--danger); background: var(--surface-2); }
+.sync-pill.is-fading { animation: sync-fade 1.8s ease forwards; }
+.sync-pill .spin { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes sync-fade { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+@media (max-width: 420px) { .sync-pill span { max-width: 150px; overflow: hidden; text-overflow: ellipsis; } }
+.timezone-settings { display: grid; gap: 14px; }
+.timezone-option { width: 100%; border: 0; border-bottom: 1px solid var(--line); background: transparent; color: var(--text); text-align: left; }
+.timezone-option:last-child { border-bottom: 0; }
+.timezone-option[aria-checked='true'] strong { color: var(--accent-ink); font-weight: 700; }
+.timezone-option svg { color: var(--accent); flex-shrink: 0; }
+.auto-backups { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; background: var(--surface-2); }
+.auto-backups-title { display: flex; align-items: center; gap: 8px; font-size: .9rem; font-weight: 600; color: var(--text); }
+.auto-backups ul { list-style: none; display: grid; gap: 2px; margin: 0; padding: 0; }
+.auto-backups li { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .9rem; }
+.auto-backups li small { margin-left: 6px; color: var(--text-2); font-size: .75rem; }
