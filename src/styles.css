@@ -550,3 +550,5 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .rank-mini { margin-left: 8px; color: var(--text-2); font-size: .72rem; font-weight: 600; }
 .skill-level { color: var(--text-2); font-size: .85rem; }
 .skill-xp { color: var(--text-2); font-size: .75rem; }
+.skills-insight { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; padding: 4px 8px 16px; color: var(--text-2); font-size: .82rem; }
+.skills-insight strong { color: var(--text); font-weight: 600; margin-left: 4px; }

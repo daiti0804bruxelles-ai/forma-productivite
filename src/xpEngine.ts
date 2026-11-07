@@ -90,12 +90,24 @@ export function skillProgress(ledger: XpLedger | undefined, skillId: SkillId): X
   return progressFromEvents((ledger?.events ?? []).filter(event => event.skillIds.includes(skillId)))
 }
 
+/** Nombre de niveaux de compétence moyens qu'il faut pour gagner un niveau de domaine. */
+export const DOMAIN_LEVEL_STEP = 5
+
+/**
+ * Un domaine est plus lent que ses compétences : un niveau de domaine = 5 niveaux de compétence moyens
+ * (compétences à 50 → domaine niveau 10). Le niveau vient de la moyenne des niveaux de ses compétences,
+ * donc il ne peut pas redescendre. La barre (0 à 100) montre où il en est jusqu'au niveau suivant.
+ * Une compétence jamais travaillée compte comme niveau 1.
+ */
 export function domainProgress(ledger: XpLedger | undefined, groupId: string): XpProgress {
   const group = SKILL_GROUPS.find(group => group.id === groupId)
   if (!group) return progressFromEvents([])
-  return progressFromEvents((ledger?.events ?? []).map(event => ({
-    amountPerSkill: event.amountPerSkill * 0.2 * group.skills.filter(skill => event.skillIds.includes(skill.id)).length,
-  })))
+  const skills = group.skills.map(skill => skillProgress(ledger, skill.id))
+  const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length
+  const level = 1 + Math.floor((mean(skills.map(skill => skill.level)) - 1) / DOMAIN_LEVEL_STEP)
+  const exact = (mean(skills.map(skill => skill.level + skill.current / skill.required)) - 1) / DOMAIN_LEVEL_STEP
+  const ratio = Math.min(0.99, Math.max(0, exact - (level - 1)))
+  return { xp: Math.round(mean(skills.map(skill => skill.xp))), level, current: Math.round(ratio * 100), required: 100 }
 }
 
 export type GoalXpSnapshot = {
