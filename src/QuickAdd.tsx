@@ -10,7 +10,7 @@ import { WEEKDAYS, toggleWeekday, isScheduledOn } from './weekdays'
 export type QuickAddType = 'task' | 'habit' | 'event'
 type Period = 'Matin' | 'Après-midi' | 'Soir'
 export type QuickAddPayload =
-  | { type: 'task'; title: string; category: string; date: string; difficulty: Difficulty; skillIds: SkillId[] }
+  | { type: 'task'; title: string; category: string; date: string; recurring: boolean; difficulty: Difficulty; skillIds: SkillId[] }
   | { type: 'habit'; title: string; category: string; period: Period; difficulty: Difficulty; skillIds: SkillId[]; days?: number[] }
   | { type: 'event'; title: string; category: string; date: string; time: string; endTime: string }
 
@@ -38,6 +38,7 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
   const [category, setCategory] = useState(categories.includes('Travail') ? 'Travail' : categories[0])
   const [date, setDate] = useState(today)
   const [pickDate, setPickDate] = useState(false)
+  const [everyDay, setEveryDay] = useState(false)
   const [period, setPeriod] = useState<Period>('Matin')
   const [time, setTime] = useState('09:00')
   const [endTime, setEndTime] = useState('10:00')
@@ -63,18 +64,18 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
     e.preventDefault()
     const clean = title.trim()
     if (!clean || invalidTime) return
-    if (type === 'task') onSubmit({ type, title: clean, category, date, difficulty, skillIds: skills })
+    if (type === 'task') onSubmit({ type, title: clean, category, date: everyDay ? today : date, recurring: everyDay, difficulty, skillIds: skills })
     else if (type === 'habit') onSubmit({ type, title: clean, category, period, difficulty, skillIds: skills, days: days.length ? days : undefined })
     else onSubmit({ type, title: clean, category, date, time, endTime })
   }
-  const chooseDay = (value: string) => { setDate(value); setPickDate(false) }
+  const chooseDay = (value: string) => { setDate(value); setPickDate(false); setEveryDay(false) }
 
   return <div className="sheet-backdrop" onMouseDown={onClose}>
     <form className="sheet" role="dialog" aria-modal="true" aria-label="Ajout rapide" onSubmit={submit} onMouseDown={e => e.stopPropagation()}>
       <div className="sheet-grabber" aria-hidden="true" />
       <div className="sheet-head">
         <div className="segmented" role="tablist" aria-label="Type d'élément">
-          {TYPES.map(t => <button key={t.id} type="button" role="tab" aria-selected={type === t.id} onClick={() => setType(t.id)}>{t.label}</button>)}
+          {TYPES.map(t => <button key={t.id} type="button" role="tab" aria-selected={type === t.id} onClick={() => { setType(t.id); if (t.id !== 'task') setEveryDay(false) }}>{t.label}</button>)}
         </div>
         <button type="button" className="icon-button" aria-label="Fermer" onClick={onClose}><X size={20} /></button>
       </div>
@@ -96,11 +97,13 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
       </> : <div className="field">
         <span>Quand</span>
         <div className="chips">
-          <Chip selected={!pickDate && date === today} onClick={() => chooseDay(today)}>Aujourd’hui</Chip>
-          <Chip selected={!pickDate && date === tomorrow} onClick={() => chooseDay(tomorrow)}>Demain</Chip>
-          <Chip selected={pickDate || (date !== today && date !== tomorrow)} onClick={() => setPickDate(true)}>Autre date</Chip>
+          <Chip selected={!everyDay && !pickDate && date === today} onClick={() => chooseDay(today)}>Aujourd’hui</Chip>
+          <Chip selected={!everyDay && !pickDate && date === tomorrow} onClick={() => chooseDay(tomorrow)}>Demain</Chip>
+          {type === 'task' && <Chip selected={everyDay} onClick={() => { setEveryDay(true); setPickDate(false); setDate(today) }}>Tous les jours</Chip>}
+          <Chip selected={!everyDay && (pickDate || (date !== today && date !== tomorrow))} onClick={() => { setPickDate(true); setEveryDay(false) }}>Autre date</Chip>
         </div>
-        {(pickDate || (date !== today && date !== tomorrow)) && <input type="date" required aria-label="Date" value={date} onChange={e => setDate(e.target.value)} />}
+        {type === 'task' && everyDay && <p className="settings-hint">Revient chaque jour · −1,5 XP les jours où elle n’est pas faite.</p>}
+        {!everyDay && (pickDate || (date !== today && date !== tomorrow)) && <input type="date" required aria-label="Date" value={date} onChange={e => setDate(e.target.value)} />}
       </div>}
 
       {type === 'event' && <div className="field-row">

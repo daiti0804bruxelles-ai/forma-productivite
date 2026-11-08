@@ -405,7 +405,7 @@ useEffect(() => {
  }
  const tomorrowKey=dateKey(addDays(makeDate(todayKey()),1))
  const handleQuickAdd=(item:QuickAddPayload)=>{
-  if(item.type==='task')setData(prev=>({...prev,tasks:[...prev.tasks,{id:id(),title:item.title,date:item.date,recurring:false,category:item.category,done:false,skillIds:item.skillIds,difficulty:item.difficulty,createdOn:todayKey()}]}))
+  if(item.type==='task')setData(prev=>({...prev,tasks:[...prev.tasks,{id:id(),title:item.title,date:item.date,recurring:item.recurring,category:item.category,done:false,skillIds:item.skillIds,difficulty:item.difficulty,createdOn:todayKey()}]}))
   else if(item.type==='habit')setData(prev=>({...prev,habits:[...prev.habits,{id:id(),title:item.title,period:item.period,category:item.category,skillIds:item.skillIds,difficulty:item.difficulty,days:item.days,createdOn:todayKey()}]}))
   else setData(prev=>({...prev,events:[...prev.events,{id:id(),title:item.title,date:item.date,time:item.time,endTime:item.endTime,category:item.category}]}))
   setQuickAdd(null)
