@@ -605,9 +605,6 @@ useEffect(() => {
   {mobileMoreOpen&&<div className="sheet-backdrop" onMouseDown={()=>setMobileMoreOpen(false)}><div className="sheet more-sheet" role="menu" aria-label="Autres pages" onMouseDown={e=>e.stopPropagation()}>
    <div className="sheet-grabber" aria-hidden="true"/>
    {nav.filter(item=>item.id==='goals'||item.id==='skills').map(item=><button type="button" role="menuitem" key={item.id} className="menu-item" onClick={()=>go(item.id)}><item.icon size={19}/> {item.label}</button>)}
-   <button type="button" role="menuitem" className="menu-item" onClick={()=>{setMobileMoreOpen(false);setAppearanceOpen(true)}}><Palette size={19}/> Apparence</button>
-   <button type="button" role="menuitem" className="menu-item" onClick={()=>{setMobileMoreOpen(false);setTimeZoneOpen(true)}}><Globe size={19}/> Fuseau horaire</button>
-   <button type="button" role="menuitem" className="menu-item" onClick={()=>{setMobileMoreOpen(false);openBackup()}}><Download size={19}/> Sauvegarde et restauration</button>
   </div></div>}
 
   {quickAdd&&<QuickAdd initialType={quickAdd} today={todayKey()} tomorrow={tomorrowKey} categories={categories} onClose={()=>setQuickAdd(null)} onSubmit={handleQuickAdd} onMoreOptions={quickAddMore}/>}
