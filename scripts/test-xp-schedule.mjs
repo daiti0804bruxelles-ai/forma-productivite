@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { build } from 'esbuild'
 const bundle = await build({entryPoints:['src/xpSchedule.ts'],bundle:true,platform:'node',format:'esm',write:false,logLevel:'silent'})
-const {rollOverTasks} = await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'))
+const {rollOverTasks, eventOccursOn} = await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'))
 const skillIds=['consistency']
 const base = {
   habits:[{id:'h1',skillIds,createdOn:'2026-11-01'},{id:'h2',skillIds,createdOn:'2026-11-03'}],
@@ -45,4 +45,17 @@ assert.equal(untouched.xpLedger,undefined,'no retrospective XP penalty on first 
 // 2026-11-02 est un lundi (1), 2026-11-03 un mardi (2)
 const rest=rollOverTasks({habits:[{id:'hw',skillIds,createdOn:'2026-11-01',days:[2,4]}],tasks:[],completedHabits:{},lastPenaltyCheckDate:'2026-11-02'},'2026-11-04')
 assert.deepEqual(rest.xpLedger.events.map(e=>e.key),['missed-habit:hw:2026-11-03'],'pas de pénalité les jours de repos prévus')
+// Activités du calendrier : lundi (1), mercredi (3), vendredi (5). 2026-11-02 = lundi.
+const sport={id:'e1',date:'2026-11-02',repeatDays:[1,3,5],skillIds:['strength','cardio'],createdOn:'2026-11-02'}
+const plain={id:'e2',date:'2026-11-02',repeatDays:[1,3,5]}
+assert.equal(eventOccursOn(sport,'2026-11-04'),true,'mercredi')
+assert.equal(eventOccursOn(sport,'2026-11-03'),false,'mardi')
+const week=rollOverTasks({habits:[],tasks:[],events:[sport,plain],completedHabits:{},completedEvents:{'2026-11-02':['e1']},lastPenaltyCheckDate:'2026-11-02'},'2026-11-07')
+const keys=week.xpLedger.events.map(e=>e.key)
+assert.deepEqual(keys.filter(k=>k.startsWith('missed-event')).sort(),['missed-event:e1:2026-11-04','missed-event:e1:2026-11-06'],'pénalité mercredi et vendredi non cochés, pas lundi (coché) ni mardi/jeudi')
+assert.equal(week.xpLedger.events.find(e=>e.key==='missed-event:e1:2026-11-04').amountPerSkill,-5)
+assert.deepEqual(week.xpLedger.events.find(e=>e.key==='missed-event:e1:2026-11-04').skillIds,['strength','cardio'])
+assert.equal(keys.some(k=>k.includes(':e2:')),false,'activité sans compétences : jamais de pénalité')
+const before=rollOverTasks({habits:[],tasks:[],events:[{...sport,createdOn:'2026-11-05'}],completedHabits:{},lastPenaltyCheckDate:'2026-11-02'},'2026-11-07')
+assert.deepEqual(before.xpLedger.events.map(e=>e.key),['missed-event:e1:2026-11-06'],'pas de pénalité avant l’activation de l’XP')
 console.log('Tests de calendrier XP réussis : échéances, journées manquées, récurrence, création, idempotence.')

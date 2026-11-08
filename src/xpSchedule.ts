@@ -3,15 +3,21 @@ import type { SkillId } from './skillsCatalog'
 
 export type ScheduledHabit = { id: string; skillIds?: SkillId[]; createdOn?: string; days?: number[] }
 export type ScheduledTask = { id: string; date: string; done: boolean; recurring?: boolean; skillIds?: SkillId[]; dueDate?: string; createdOn?: string }
+export type ScheduledEvent = { id: string; date: string; repeatDays?: number[]; skillIds?: SkillId[]; createdOn?: string }
 export type ScheduledData<H extends ScheduledHabit, T extends ScheduledTask> = {
   habits: H[]
   tasks: T[]
+  events?: ScheduledEvent[]
+  completedEvents?: Record<string, string[]>
   completedHabits: Record<string, string[]>
   xpLedger?: XpLedger
   lastPenaltyCheckDate?: string
 }
 const toDate = (s: string) => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d) }
 const keyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+/** Une activité a lieu ce jour-là : à sa date, ou les jours de répétition suivants. */
+export const eventOccursOn = (event: { date: string; repeatDays?: number[] }, day: string) =>
+  event.date === day || (day > event.date && Array.isArray(event.repeatDays) && event.repeatDays.includes(toDate(day).getDay()))
 const nextDay = (d: Date) => { const result = new Date(d); result.setDate(result.getDate()+1); return result }
 
 /** Idempotent daily rollover. Never backfills penalties before the first check. */
@@ -34,6 +40,15 @@ export function rollOverTasks<H extends ScheduledHabit, T extends ScheduledTask>
         if (habit.days && habit.days.length && !habit.days.includes(day.getDay())) continue
         if (!(value.completedHabits[key] || []).includes(habit.id)) {
           xpLedger = penalizeXp(xpLedger, `missed-habit:${habit.id}:${key}`, habit.skillIds, -5)
+        }
+      }
+      // Activité du calendrier avec compétences, prévue ce jour-là et non cochée : même pénalité qu'une habitude.
+      // Seulement à partir du jour où l'XP a été activée sur l'activité (createdOn).
+      for (const event of value.events ?? []) {
+        if (!event.skillIds?.length || !event.createdOn || event.createdOn > key) continue
+        if (!eventOccursOn(event, key)) continue
+        if (!(value.completedEvents?.[key] || []).includes(event.id)) {
+          xpLedger = penalizeXp(xpLedger, `missed-event:${event.id}:${key}`, event.skillIds, -5)
         }
       }
       for (const task of value.tasks) {

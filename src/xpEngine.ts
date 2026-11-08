@@ -1,6 +1,6 @@
 import { SKILL_GROUPS, isSkillId, type SkillId } from './skillsCatalog'
 
-export type XpSource = 'habit' | 'task' | 'goal' | 'penalty'
+export type XpSource = 'habit' | 'task' | 'event' | 'goal' | 'penalty'
 export type XpEvent = {
   key: string
   source: XpSource
@@ -144,7 +144,7 @@ export function isValidXpLedger(value: unknown): value is XpLedger {
   for (const event of events) {
     if (!event || typeof event.key !== 'string' || event.key.length > 300 || keys.has(event.key)) return false
     keys.add(event.key)
-    if (!['habit', 'task', 'goal', 'penalty'].includes(event.source) ||
+    if (!['habit', 'task', 'event', 'goal', 'penalty'].includes(event.source) ||
       typeof event.at !== 'string' || event.at.length > 60 ||
       !Array.isArray(event.skillIds) || event.skillIds.length < 1 || event.skillIds.length > 19 ||
       !event.skillIds.every(isSkillId) || new Set(event.skillIds).size !== event.skillIds.length ||
