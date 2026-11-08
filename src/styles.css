@@ -598,3 +598,6 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .habit-stats-foot .dot.is-rest { box-shadow: inset 0 0 0 1px var(--line); }
 .row-copy.is-tappable { cursor: pointer; }
 .postpone-chip { justify-self: start; }
+.notification-settings { display: grid; gap: 20px; }
+.install-steps { display: grid; gap: 8px; padding: 14px 16px; border-radius: 14px; background: var(--accent-soft); color: var(--accent-ink); font-size: .9rem; line-height: 1.45; }
+.install-steps ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
