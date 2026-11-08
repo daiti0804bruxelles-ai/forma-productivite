@@ -16,7 +16,7 @@ import { awardXp, awardCompletedGoals, isValidXpLedger, isDifficulty, xpForDiffi
 import { suggestSkills, skillName } from './skillSuggest'
 import { WEEKDAYS, toggleWeekday, isScheduledOn, daysLabel } from './weekdays'
 import { SKILL_GROUPS } from './skillsCatalog'
-import { rollOverTasks as advanceDay } from './xpSchedule'
+import { rollOverTasks as advanceDay, eventOccursOn } from './xpSchedule'
 import { useCloudSync } from './useCloudSync'
 import { createBackup, ensureWeeklyBackup, listBackups, readBackupData, type BackupInfo } from './backups'
 import { currentDayKey, isValidTimeZone, setReferenceTimeZone } from './timeZone'
@@ -34,11 +34,11 @@ type Period = 'Matin' | 'Après-midi' | 'Soir'
 type Habit = { id:string; title:string; period:Period; category:string; skillIds?:SkillId[]; createdOn?:string; difficulty?:Difficulty; days?:number[] }
 type Subtask = { id:string; title:string; done:boolean }
 type Task = { id:string; subtasks?:Subtask[]; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[]; dueDate?:string; createdOn?:string; difficulty?:Difficulty }
-type Event = { id:string; title:string; date:string; time:string; endTime?:string; category:string; repeatDays?:number[] }
-type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string }
+type Event = { id:string; title:string; date:string; time:string; endTime?:string; category:string; repeatDays?:number[]; skillIds?:SkillId[]; difficulty?:Difficulty; createdOn?:string }
+type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string }
 const todayKey = () => currentDayKey()
 const weekdayOptions=[{day:1,label:'Lun'},{day:2,label:'Mar'},{day:3,label:'Mer'},{day:4,label:'Jeu'},{day:5,label:'Ven'},{day:6,label:'Sam'},{day:0,label:'Dim'}]
-function eventOccursOn(event:Event,day:string){return event.date===day||(day>event.date&&Array.isArray(event.repeatDays)&&event.repeatDays.includes(makeDate(day).getDay()))}
+
 function rollOverTasks(value:AppData,today=todayKey()):AppData {return advanceDay(value,today) as AppData}
 
 function dateKey(d:Date){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
@@ -70,7 +70,8 @@ function isAppData(value:unknown):value is AppData{
  if(!d.habits.every(h=>h&&validText(h.id)&&validText(h.title)&&validText(h.category)&&['Matin','Après-midi','Soir'].includes(h.period)&&validSkills(h.skillIds)&&(h.createdOn===undefined||validDate(h.createdOn))))return false
  if(d.taskOrder!==undefined&&(!Array.isArray(d.taskOrder)||d.taskOrder.length>10000||!d.taskOrder.every(validText)||new Set(d.taskOrder).size!==d.taskOrder.length))return false
   if(!d.tasks.every(t=>t&&validText(t.id)&&validText(t.title)&&validText(t.category)&&validDate(t.date)&&typeof t.done==='boolean'&&(t.recurring===undefined||typeof t.recurring==='boolean')&&validSkills(t.skillIds)&&(t.subtasks===undefined||(Array.isArray(t.subtasks)&&t.subtasks.length<=100&&t.subtasks.every(st=>st&&validText(st.id)&&validText(st.title)&&typeof st.done==='boolean')))&&(t.dueDate===undefined||validDate(t.dueDate))&&(t.createdOn===undefined||validDate(t.createdOn))))return false
- if(!d.events.every(e=>e&&validText(e.id)&&validText(e.title)&&validText(e.category)&&validDate(e.date)&&typeof e.time==='string'&&/^\d{2}:\d{2}$/.test(e.time)&&(e.endTime===undefined||(typeof e.endTime==='string'&&/^\d{2}:\d{2}$/.test(e.endTime)&&e.endTime>e.time))&&(e.repeatDays===undefined||(Array.isArray(e.repeatDays)&&e.repeatDays.length>0&&e.repeatDays.length<=7&&e.repeatDays.every(day=>Number.isInteger(day)&&day>=0&&day<=6)&&new Set(e.repeatDays).size===e.repeatDays.length))))return false
+ if(!d.events.every(e=>e&&validText(e.id)&&validText(e.title)&&validText(e.category)&&validDate(e.date)&&typeof e.time==='string'&&/^\d{2}:\d{2}$/.test(e.time)&&(e.endTime===undefined||(typeof e.endTime==='string'&&/^\d{2}:\d{2}$/.test(e.endTime)&&e.endTime>e.time))&&(e.repeatDays===undefined||(Array.isArray(e.repeatDays)&&e.repeatDays.length>0&&e.repeatDays.length<=7&&e.repeatDays.every(day=>Number.isInteger(day)&&day>=0&&day<=6)&&new Set(e.repeatDays).size===e.repeatDays.length))&&validSkills(e.skillIds)&&(e.difficulty===undefined||isDifficulty(e.difficulty))&&(e.createdOn===undefined||validDate(e.createdOn))))return false
+ if(d.completedEvents!==undefined&&(!d.completedEvents||typeof d.completedEvents!=='object'||Array.isArray(d.completedEvents)||!Object.entries(d.completedEvents).every(([day,ids])=>validDate(day)&&Array.isArray(ids)&&ids.length<=1000&&ids.every(validText))))return false
  if(d.appearance!==undefined&&!isAppearance(d.appearance))return false
  if(d.xpVersion!==undefined&&typeof d.xpVersion!=='number')return false
  if(d.timeZone!==undefined&&!isValidTimeZone(d.timeZone))return false
@@ -233,6 +234,7 @@ useEffect(()=>{
  const [formDifficulty,setFormDifficulty]=useState<Difficulty>('moyen')
  const [formDays,setFormDays]=useState<number[]>([])
  const [formSkillsTouched,setFormSkillsTouched]=useState(false)
+ const [formEventXp,setFormEventXp]=useState(false)
  
 // Sauvegarde automatique hebdomadaire, une fois par ouverture de l'app.
 const weeklyBackupFor = useRef<string | null>(null)
@@ -267,6 +269,17 @@ useEffect(() => {
     xpLedger: !alreadyDone && habit ? awardXp(prev.xpLedger,`habit:${habitId}:${key}`,'habit',habit.skillIds,xpForDifficulty(habit.difficulty)) : prev.xpLedger
   }
  })
+ const toggleEvent=(eventId:string)=>setData(prev=>{
+  const key=todayKey(), now=prev.completedEvents?.[key]||[]
+  const alreadyDone=now.includes(eventId)
+  const event=prev.events.find(ev=>ev.id===eventId)
+  return {
+   ...prev,
+   completedEvents:{...(prev.completedEvents||{}),[key]:alreadyDone?now.filter(i=>i!==eventId):[...now,eventId]},
+   activityDays:alreadyDone?prev.activityDays:Array.from(new Set([...(prev.activityDays||[]),key])),
+   xpLedger:!alreadyDone&&event?.skillIds?.length?awardXp(prev.xpLedger,`event:${eventId}:${key}`,'event',event.skillIds,xpForDifficulty(event.difficulty)):prev.xpLedger
+  }
+ })
  const toggleTask=(taskId:string)=>setData(prev=>{
   const task=prev.tasks.find(t=>t.id===taskId)
   if(!task)return prev
@@ -278,9 +291,11 @@ useEffect(() => {
     xpLedger: !task.done ? awardXp(prev.xpLedger,key,'task',task.skillIds,xpForDifficulty(task.difficulty)) : prev.xpLedger
   }
  })
- const openAdd=(type:'task'|'habit'|'event',date=todayKey())=>{setEditing(null);setFormTitle('');setFormSkillIds([]);setFormCategory('Travail');setFormPeriod('Matin');setFormRecurring(false);setFormDate(date);setFormTime('09:00');setFormEndTime('10:00');setFormRepeatDays([]);setFormDifficulty('moyen');setFormDays([]);setFormSkillsTouched(false);setModal(type)}
- const openEdit=(type:'task'|'habit'|'event',record:Task|Habit|Event)=>{setEditing(record.id);setFormTitle(record.title);setFormSkillsTouched(true);setFormDifficulty('difficulty' in record&&record.difficulty?record.difficulty:'moyen');setFormDays('days' in record&&record.days?record.days:[]);setFormSkillIds('skillIds' in record ? (record.skillIds || []) : []);setFormCategory(record.category);if('period'in record)setFormPeriod(record.period);if('recurring'in record)setFormRecurring(Boolean(record.recurring));if('date'in record)setFormDate(record.date);if('time'in record){setFormRepeatDays(record.repeatDays||[]);setFormTime(record.time);const [hours,minutes]=record.time.split(':').map(Number);setFormEndTime(record.endTime||`${String(Math.min(hours+1,23)).padStart(2,'0')}:${String(hours===23?Math.min(minutes+1,59):minutes).padStart(2,'0')}`)}setModal(type)}
- const submit=(e:FormEvent)=>{e.preventDefault();if(!formTitle.trim()||!modal)return;if(modal==='event'&&formEndTime<=formTime)return;const title=formTitle.trim();if(modal==='habit'){setData(prev=>({...prev,habits:editing?prev.habits.map(h=>h.id===editing?{...h,title,period:formPeriod,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty,days:formDays.length?formDays:undefined}:h):[...prev.habits,{id:id(),title,period:formPeriod,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty,days:formDays.length?formDays:undefined,createdOn:todayKey()}]}))}if(modal==='task'){setData(prev=>({...prev,tasks:editing?prev.tasks.map(t=>t.id===editing?{...t,title,date:formDate,dueDate:formDate===t.date?t.dueDate:undefined,recurring:formRecurring,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty}:t):[...prev.tasks,{id:id(),title,date:formDate,recurring:formRecurring,category:formCategory,done:false,skillIds:formSkillIds,difficulty:formDifficulty,createdOn:todayKey()}]}))}if(modal==='event'){setData(prev=>({...prev,events:editing?prev.events.map(ev=>ev.id===editing?{...ev,title,date:formDate,time:formTime,endTime:formEndTime,repeatDays:formRepeatDays.length?formRepeatDays:undefined,category:formCategory}:ev):[...prev.events,{id:id(),title,date:formDate,time:formTime,endTime:formEndTime,category:formCategory,repeatDays:formRepeatDays.length?formRepeatDays:undefined}]}))}setModal(null)}
+ const openAdd=(type:'task'|'habit'|'event',date=todayKey())=>{setEditing(null);setFormTitle('');setFormSkillIds([]);setFormCategory('Travail');setFormPeriod('Matin');setFormRecurring(false);setFormDate(date);setFormTime('09:00');setFormEndTime('10:00');setFormRepeatDays([]);setFormDifficulty('moyen');setFormDays([]);setFormSkillsTouched(false);setFormEventXp(false);setModal(type)}
+ const openEdit=(type:'task'|'habit'|'event',record:Task|Habit|Event)=>{setEditing(record.id);setFormTitle(record.title);setFormSkillsTouched(true);setFormDifficulty('difficulty' in record&&record.difficulty?record.difficulty:'moyen');setFormDays('days' in record&&record.days?record.days:[]);setFormSkillIds('skillIds' in record ? (record.skillIds || []) : []);setFormEventXp(Boolean('skillIds' in record&&record.skillIds?.length));setFormCategory(record.category);if('period'in record)setFormPeriod(record.period);if('recurring'in record)setFormRecurring(Boolean(record.recurring));if('date'in record)setFormDate(record.date);if('time'in record){setFormRepeatDays(record.repeatDays||[]);setFormTime(record.time);const [hours,minutes]=record.time.split(':').map(Number);setFormEndTime(record.endTime||`${String(Math.min(hours+1,23)).padStart(2,'0')}:${String(hours===23?Math.min(minutes+1,59):minutes).padStart(2,'0')}`)}setModal(type)}
+ // XP d'une activité : compétences + difficulté si activé. createdOn = début des pénalités (jamais rétroactives).
+ const eventXpFields=(previous?:Event)=>formEventXp&&formSkillIds.length?{skillIds:formSkillIds,difficulty:formDifficulty,createdOn:previous?.skillIds?.length&&previous.createdOn?previous.createdOn:todayKey()}:{skillIds:undefined,difficulty:undefined,createdOn:undefined}
+ const submit=(e:FormEvent)=>{e.preventDefault();if(!formTitle.trim()||!modal)return;if(modal==='event'&&formEndTime<=formTime)return;const title=formTitle.trim();if(modal==='habit'){setData(prev=>({...prev,habits:editing?prev.habits.map(h=>h.id===editing?{...h,title,period:formPeriod,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty,days:formDays.length?formDays:undefined}:h):[...prev.habits,{id:id(),title,period:formPeriod,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty,days:formDays.length?formDays:undefined,createdOn:todayKey()}]}))}if(modal==='task'){setData(prev=>({...prev,tasks:editing?prev.tasks.map(t=>t.id===editing?{...t,title,date:formDate,dueDate:formDate===t.date?t.dueDate:undefined,recurring:formRecurring,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty}:t):[...prev.tasks,{id:id(),title,date:formDate,recurring:formRecurring,category:formCategory,done:false,skillIds:formSkillIds,difficulty:formDifficulty,createdOn:todayKey()}]}))}if(modal==='event'){setData(prev=>({...prev,events:editing?prev.events.map(ev=>ev.id===editing?{...ev,title,date:formDate,time:formTime,endTime:formEndTime,repeatDays:formRepeatDays.length?formRepeatDays:undefined,category:formCategory,...eventXpFields(ev)}:ev):[...prev.events,{id:id(),title,date:formDate,time:formTime,endTime:formEndTime,category:formCategory,repeatDays:formRepeatDays.length?formRepeatDays:undefined,...eventXpFields()}]}))}setModal(null)}
  const deleteItem=(type:'task'|'habit'|'event',itemId:string)=>setPendingDelete({type,id:itemId})
  const confirmDelete=()=>{if(!pendingDelete)return;const {type,id:itemId}=pendingDelete;setData(prev=>type==='task'?{...prev,tasks:prev.tasks.filter(t=>t.id!==itemId)}:type==='event'?{...prev,events:prev.events.filter(e=>e.id!==itemId)}:{...prev,habits:prev.habits.filter(h=>h.id!==itemId)});setPendingDelete(null);setModal(null)}
  const [autoBackups,setAutoBackups]=useState<BackupInfo[]|null>(null)
@@ -381,6 +396,13 @@ useEffect(() => {
   if(!t.done)keepBriefly(t.id)
   if(!t.done&&t.skillIds?.length&&!earned(key))setXpFlash({id:t.id,amount:xpForDifficulty(t.difficulty)*(t.skillIds?.length||1)})
  }
+ const completedEventsToday=data.completedEvents?.[todayKey()]||[]
+ const checkEvent=(ev:Event)=>{
+  const done=completedEventsToday.includes(ev.id)
+  toggleEvent(ev.id)
+  if(!done)keepBriefly(ev.id)
+  if(!done&&ev.skillIds?.length&&!earned(`event:${ev.id}:${todayKey()}`))setXpFlash({id:ev.id,amount:xpForDifficulty(ev.difficulty)*ev.skillIds.length})
+ }
  const tomorrowKey=dateKey(addDays(makeDate(todayKey()),1))
  const handleQuickAdd=(item:QuickAddPayload)=>{
   if(item.type==='task')setData(prev=>({...prev,tasks:[...prev.tasks,{id:id(),title:item.title,date:item.date,recurring:false,category:item.category,done:false,skillIds:item.skillIds,difficulty:item.difficulty,createdOn:todayKey()}]}))
@@ -396,12 +418,15 @@ useEffect(() => {
  const sortedHabits=periods.flatMap(p=>todaysHabits.filter(h=>h.period===p.name))
  const nowTime=`${String(clock.getHours()).padStart(2,'0')}:${String(clock.getMinutes()).padStart(2,'0')}`
  const eventPast=(ev:Event)=>(ev.endTime||ev.time)<=nowTime
- const visibleEvents=showDone?todayEvents:todayEvents.filter(ev=>!eventPast(ev))
+ // Une activité avec XP reste visible tant qu'elle n'est pas cochée ; une fois cochée, elle se range comme une tâche.
+ const eventHidden=(ev:Event)=>ev.skillIds?.length?completedEventsToday.includes(ev.id)&&!leaving.includes(ev.id):eventPast(ev)
+ const visibleEvents=showDone?todayEvents:todayEvents.filter(ev=>!eventHidden(ev))
  const visibleTasks=showDone?orderedTodayTasks:orderedTodayTasks.filter(t=>!t.done||leaving.includes(t.id))
  const visibleHabits=showDone?sortedHabits:sortedHabits.filter(h=>!completed.includes(h.id)||leaving.includes(h.id))
- const hiddenCount=todayEvents.filter(eventPast).length+orderedTodayTasks.filter(t=>t.done).length+sortedHabits.filter(h=>completed.includes(h.id)).length
- const dayDone=doneTasks+habitsDone
- const dayTotal=todaysTasks.length+todaysHabits.length
+ const hiddenCount=todayEvents.filter(ev=>ev.skillIds?.length?completedEventsToday.includes(ev.id):eventPast(ev)).length+orderedTodayTasks.filter(t=>t.done).length+sortedHabits.filter(h=>completed.includes(h.id)).length
+ const xpEventsToday=todayEvents.filter(ev=>ev.skillIds?.length)
+ const dayDone=doneTasks+habitsDone+xpEventsToday.filter(ev=>completedEventsToday.includes(ev.id)).length
+ const dayTotal=todaysTasks.length+todaysHabits.length+xpEventsToday.length
  const dayProgress=dayTotal?Math.round(dayDone/dayTotal*100):0
  const showFab=page==='dashboard'||page==='habits'||page==='tasks'||page==='calendar'
  const subtaskCount=(t:Task)=>{const list=t.subtasks||[];return list.length?`${list.filter(st=>st.done).length}/${list.length}`:''}
@@ -480,7 +505,7 @@ useEffect(() => {
      </div>}
      <section className="list-section today-events">
       <div className="section-head"><h2>Programme</h2><button type="button" className="text-action" onClick={()=>go('calendar')}>Calendrier <ArrowRight size={15}/></button></div>
-      <div className="list-card">{visibleEvents.length?visibleEvents.map(ev=><div className={`event-row ${eventPast(ev)?'is-past':''}`} key={ev.id}><span className="event-time">{ev.time}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span>{ev.title}</span><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}</small></div></div>):<Empty message={todayEvents.length?'Plus rien de prévu aujourd’hui.':'Rien de prévu aujourd’hui.'}/>}</div>
+      <div className="list-card">{visibleEvents.length?visibleEvents.map(ev=>{const xp=Boolean(ev.skillIds?.length);const done=completedEventsToday.includes(ev.id);return <div className={`event-row ${!xp&&eventPast(ev)?'is-past':''} ${leaving.includes(ev.id)&&!showDone?'is-leaving':''}`} key={ev.id}>{xp&&<RoundCheck done={done} label={`${done?'Annuler':'Valider'} ${ev.title}`} onToggle={()=>checkEvent(ev)}/>}<span className="event-time">{ev.time}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span className={done?'is-done':''}>{ev.title}</span><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}{xp?` · +${xpForDifficulty(ev.difficulty)*(ev.skillIds?.length||0)} XP`:''}</small></div>{xpFlash?.id===ev.id&&<span className="xp-flash" aria-hidden="true">+{xpFlash.amount} XP</span>}</div>}):<Empty message={todayEvents.length?'Plus rien de prévu aujourd’hui.':'Rien de prévu aujourd’hui.'}/>}</div>
      </section>
      <section className="list-section today-tasks">
       <div className="section-head"><h2>Tâches</h2><button type="button" className="text-action" onClick={()=>go('tasks')}>Tout voir <ArrowRight size={15}/></button></div>
@@ -581,7 +606,7 @@ useEffect(() => {
       <section className="panel selected-panel">
        <h2 className="selected-title">{frDate(makeDate(selectedDate),{weekday:'long',day:'numeric',month:'long'})}</h2>
        <div className="schedule-block"><div className="schedule-subtitle">Activités</div>
-        {selectedEvents.map(ev=><div className="event-row" key={ev.id}><span className="event-time">{ev.time}{ev.endTime?` – ${ev.endTime}`:''}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span>{ev.title}</span><small>{ev.category}{ev.repeatDays?' · chaque semaine':''}</small></div><button type="button" className="small-icon" aria-label={`Modifier ${ev.title}`} onClick={()=>openEdit('event',ev)}><Pencil size={16}/></button><button type="button" className="small-icon" aria-label={`Supprimer ${ev.title}`} onClick={()=>deleteItem('event',ev.id)}><Trash2 size={16}/></button></div>)}
+        {selectedEvents.map(ev=><div className="event-row" key={ev.id}>{ev.skillIds?.length&&selectedDate===todayKey()?<RoundCheck done={completedEventsToday.includes(ev.id)} label={`${completedEventsToday.includes(ev.id)?'Annuler':'Valider'} ${ev.title}`} onToggle={()=>checkEvent(ev)}/>:null}<span className="event-time">{ev.time}{ev.endTime?` – ${ev.endTime}`:''}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span>{ev.title}</span><small>{ev.category}{ev.repeatDays?' · chaque semaine':''}{ev.skillIds?.length?` · +${xpForDifficulty(ev.difficulty)*ev.skillIds.length} XP`:''}</small></div><button type="button" className="small-icon" aria-label={`Modifier ${ev.title}`} onClick={()=>openEdit('event',ev)}><Pencil size={16}/></button><button type="button" className="small-icon" aria-label={`Supprimer ${ev.title}`} onClick={()=>deleteItem('event',ev.id)}><Trash2 size={16}/></button></div>)}
         {selectedEvents.length===0&&<Empty message="Aucune activité prévue."/>}
         <button type="button" className="add-row" onClick={()=>openAdd('event',selectedDate)}><Plus size={16}/> Ajouter une activité</button>
        </div>
@@ -612,7 +637,7 @@ useEffect(() => {
   {appearanceOpen&&<Modal title="Apparence" onClose={()=>setAppearanceOpen(false)}><AppearanceSettings value={appearance} onChange={updateAppearance}/></Modal>}
   {backupOpen&&<Modal title="Mes sauvegardes" onClose={closeBackup}><div className="backup-panel"><p className="backup-lead">Vos données sont synchronisées avec votre compte. Exportez une copie pour disposer d’une sauvegarde indépendante.</p><div className="backup-stat"><ShieldCheck size={20}/><span><strong>{data.habits.length} habitudes · {data.tasks.length} tâches · {data.events.length} activités · {(data.goals||[]).length} objectifs</strong><small>Votre progression quotidienne est également incluse.</small></span></div><button type="button" className="backup-action backup-export" onClick={exportBackup}><Download size={19}/><span><strong>Exporter ma sauvegarde</strong><small>Télécharger un fichier Forma (.json)</small></span></button><label className="backup-action backup-import"><Upload size={19}/><span><strong>Importer une sauvegarde</strong><small>Choisir un fichier Forma (.json)</small></span><input type="file" accept=".json,application/json" onChange={e=>{void readBackup(e.target.files?.[0]);e.target.value=''}}/></label><div className="auto-backups"><p className="auto-backups-title"><History size={16}/> Sauvegardes automatiques</p>{autoBackups===null?<p className="settings-hint">Chargement…</p>:autoBackups.length===0?<p className="settings-hint">Aucune pour l’instant. Forma en crée une chaque semaine à l’ouverture et garde les 8 dernières.</p>:<ul>{autoBackups.map(b=><li key={b.id}><span>{new Date(b.created_at).toLocaleString('fr-FR',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} <small>{b.reason}</small></span><button type="button" className="text-action" onClick={()=>{void previewAutoBackup(b.id)}}>Voir</button></li>)}</ul>}</div>{backupError&&<p role="alert" className="backup-error">{backupError}</p>}{restorePreview&&<div className="backup-preview"><strong>Sauvegarde prête à restaurer</strong><p>{restorePreview.habits.length} habitudes · {restorePreview.tasks.length} tâches · {restorePreview.events.length} activités</p><p>Attention : la restauration remplacera les données de votre compte sur tous vos appareils. Une copie de l’état actuel est gardée dans les sauvegardes automatiques.</p><div className="backup-actions"><button type="button" className="delete-cancel" onClick={()=>setRestorePreview(null)}>Annuler</button><button type="button" className="backup-confirm" onClick={()=>{void restoreBackup()}} disabled={restoringBackup}>{restoringBackup?"Restauration…":"Restaurer mes données"}</button></div></div>}<p className="backup-footnote">Ce fichier reste sous votre contrôle. Vos données sont synchronisées via votre compte Supabase.</p></div></Modal>}
   {modal&&<Modal title={`${editing?'Modifier':'Ajouter'} ${modal==='habit'?'une habitude':modal==='task'?'une tâche':'une activité'}`} onClose={()=>setModal(null)}><form onSubmit={submit} className="modal-form">
-   <label>Nom<input autoFocus maxLength={100} required placeholder={modal==='habit'?'Ex. : Méditer 10 minutes':modal==='task'?'Ex. : Préparer la présentation':'Ex. : Séance de sport'} value={formTitle} onChange={e=>{const value=e.target.value;setFormTitle(value);if(modal!=='event'&&!editing&&!formSkillsTouched)setFormSkillIds(value.trim()?suggestSkills(value,formCategory,modal==='habit'?'habit':'task'):[])}}/></label>
+   <label>Nom<input autoFocus maxLength={100} required placeholder={modal==='habit'?'Ex. : Méditer 10 minutes':modal==='task'?'Ex. : Préparer la présentation':'Ex. : Séance de sport'} value={formTitle} onChange={e=>{const value=e.target.value;setFormTitle(value);if((modal!=='event'||formEventXp)&&!editing&&!formSkillsTouched)setFormSkillIds(value.trim()?suggestSkills(value,formCategory,modal==='habit'||(modal==='event'&&formRepeatDays.length>0)?'habit':'task'):[])}}/></label>
    <label>Catégorie<select value={formCategory} onChange={e=>{const value=e.target.value;setFormCategory(value);if(modal!=='event'&&!editing&&!formSkillsTouched&&formTitle.trim())setFormSkillIds(suggestSkills(formTitle,value,modal==='habit'?'habit':'task'))}}>{categories.map(c=><option key={c}>{c}</option>)}</select></label>
    {modal==='habit'&&<label>Moment de la journée<select value={formPeriod} onChange={e=>setFormPeriod(e.target.value as Period)}>{periods.map(p=><option key={p.name}>{p.name}</option>)}</select></label>}
    {modal==='task'&&<div className="settings-row boxed"><span><strong>Répéter tous les jours</strong><small>Une nouvelle validation chaque jour</small></span><button type="button" role="switch" className="switch" aria-checked={formRecurring} aria-label="Répéter tous les jours" onClick={()=>setFormRecurring(v=>!v)}><span/></button></div>}
@@ -625,6 +650,11 @@ useEffect(() => {
     {formEndTime<=formTime&&<p role="alert" className="form-error">L’heure de fin doit être après l’heure de début.</p>}
     <div className="settings-row boxed"><span><strong>Répéter chaque semaine</strong><small>Choisir les jours de répétition</small></span><button type="button" role="switch" className="switch" aria-checked={formRepeatDays.length>0} aria-label="Répéter chaque semaine" onClick={()=>setFormRepeatDays(days=>days.length?[]:[makeDate(formDate).getDay()])}><span/></button></div>
     {formRepeatDays.length>0&&<div className="chips">{weekdayOptions.map(({day,label})=><button key={day} type="button" className="chip" aria-pressed={formRepeatDays.includes(day)} onClick={()=>setFormRepeatDays(days=>days.includes(day)?days.length>1?days.filter(d=>d!==day):days:[...days,day])}>{label}</button>)}</div>}
+    <div className="settings-row boxed"><span><strong>Gagner de l’XP</strong><small>À cocher quand c’est fait · −5 XP si oublié</small></span><button type="button" role="switch" className="switch" aria-checked={formEventXp} aria-label="Gagner de l’XP avec cette activité" onClick={()=>{const on=!formEventXp;setFormEventXp(on);if(on&&!formSkillIds.length&&formTitle.trim())setFormSkillIds(suggestSkills(formTitle,formCategory,formRepeatDays.length?'habit':'task'))}}><span/></button></div>
+    {formEventXp&&<>
+     <div className="field"><span>Difficulté</span><div className="chips">{DIFFICULTIES.map(d=><button key={d.id} type="button" className="chip" aria-pressed={formDifficulty===d.id} onClick={()=>setFormDifficulty(d.id)}>{d.label} <small>{d.xp} XP</small></button>)}</div></div>
+     <SkillSelector value={formSkillIds} onChange={next=>{setFormSkillsTouched(true);setFormSkillIds(next)}} hint={!formSkillsTouched?'Suggestion automatique d’après le nom.':undefined}/>
+    </>}
    </>}
    <div className="form-actions">{editing&&<button type="button" className="danger-link" onClick={()=>deleteItem(modal,editing)}><Trash2 size={16}/> Supprimer</button>}<button type="button" className="secondary-btn" onClick={()=>setModal(null)}>Annuler</button><button type="submit" className="primary-btn"><Check size={17}/>{editing?'Enregistrer':'Ajouter'}</button></div>
   </form></Modal>}
