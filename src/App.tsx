@@ -12,8 +12,10 @@ import { isSkillId, type SkillId } from './skillsCatalog'
 import SharedGoalsPage from './SharedGoalsPage'
 import type { Goal } from './GoalsPage'
 import { isValidGoal, progressPercent } from './goalModel'
-import { awardXp, awardCompletedGoals, isValidXpLedger, isDifficulty, xpForDifficulty, difficultyLabel, DIFFICULTIES, MAX_SKILLS_PER_ITEM, skillProgress, rankFor, type Difficulty, type XpLedger } from './xpEngine'
+import { awardXp, awardCompletedGoals, isValidXpLedger, isDifficulty, xpForDifficulty, difficultyLabel, DIFFICULTIES, MAX_SKILLS_PER_ITEM, skillProgress, rankFor, type Difficulty, type XpLedger, type XpSource } from './xpEngine'
 import { suggestSkills, skillName } from './skillSuggest'
+import { GOLD_BY_DIFFICULTY, addGold, chestFor, goldBalance, isGoldLedger, isInventory, isReward, streakLength, xpMultiplier, boostActive, type GameState } from './game'
+import Shop, { Coin } from './Shop'
 import { WEEKDAYS, toggleWeekday, isScheduledOn, daysLabel } from './weekdays'
 import { SKILL_GROUPS } from './skillsCatalog'
 import { rollOverTasks as advanceDay, eventOccursOn } from './xpSchedule'
@@ -38,7 +40,7 @@ type Habit = { id:string; title:string; period:Period; category:string; skillIds
 type Subtask = { id:string; title:string; done:boolean }
 type Task = { id:string; subtasks?:Subtask[]; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[]; dueDate?:string; createdOn?:string; difficulty?:Difficulty }
 type Event = { id:string; title:string; date:string; time:string; endTime?:string; category:string; repeatDays?:number[]; skillIds?:SkillId[]; difficulty?:Difficulty; createdOn?:string }
-type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string; notifications?:NotificationPrefs }
+type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string; notifications?:NotificationPrefs } & GameState
 const todayKey = () => currentDayKey()
 const weekdayOptions=[{day:1,label:'Lun'},{day:2,label:'Mar'},{day:3,label:'Mer'},{day:4,label:'Jeu'},{day:5,label:'Ven'},{day:6,label:'Sam'},{day:0,label:'Dim'}]
 
@@ -79,6 +81,12 @@ function isAppData(value:unknown):value is AppData{
  if(d.xpVersion!==undefined&&typeof d.xpVersion!=='number')return false
  if(d.timeZone!==undefined&&!isValidTimeZone(d.timeZone))return false
  if(d.notifications!==undefined&&!isNotificationPrefs(d.notifications))return false
+ if(d.goldLedger!==undefined&&!isGoldLedger(d.goldLedger))return false
+ if(d.rewards!==undefined&&(!Array.isArray(d.rewards)||d.rewards.length>200||!d.rewards.every(isReward)))return false
+ if(d.inventory!==undefined&&!isInventory(d.inventory))return false
+ if(d.protectedDays!==undefined&&(!Array.isArray(d.protectedDays)||d.protectedDays.length>5000||!d.protectedDays.every(validDate)))return false
+ if(d.frozenDays!==undefined&&(!Array.isArray(d.frozenDays)||d.frozenDays.length>5000||!d.frozenDays.every(validDate)))return false
+ if(d.boostUntil!==undefined&&(typeof d.boostUntil!=='string'||Number.isNaN(Date.parse(d.boostUntil))))return false
  if(d.legacyXpLedger!==undefined&&!isValidXpLedger(d.legacyXpLedger))return false
  const validDays=(days:unknown)=>days===undefined||(Array.isArray(days)&&days.length>=1&&days.length<=7&&days.every(day=>Number.isInteger(day)&&day>=0&&day<=6)&&new Set(days).size===days.length)
  if(!d.habits.every(h=>(h.difficulty===undefined||isDifficulty(h.difficulty))&&validDays(h.days)))return false
@@ -172,6 +180,11 @@ function migrateXp(value:AppData):AppData{
   habits:value.habits.map(h=>fill(h,'habit')),tasks:value.tasks.map(t=>fill(t,'task'))}
 }
 const ALL_SKILLS=SKILL_GROUPS.flatMap(group=>group.skills.map(skill=>({id:skill.id as SkillId,name:skill.name})))
+/** Récompense d'une validation : XP (doublée pendant un boost) + or selon la difficulté. Une seule fois par clé. */
+function earn(prev:AppData,key:string,source:XpSource,skillIds:SkillId[]|undefined,difficulty:Difficulty|undefined,label:string):Partial<AppData>{
+ if(!skillIds?.length||prev.xpLedger?.events.some(e=>e.key===key))return {}
+ return {xpLedger:awardXp(prev.xpLedger,key,source,skillIds,xpForDifficulty(difficulty)*xpMultiplier(prev)),goldLedger:addGold(prev.goldLedger,`gold:${key}`,GOLD_BY_DIFFICULTY[difficulty??'moyen'],label)}
+}
 function RoundCheck({done,label,onToggle}:{done:boolean;label:string;onToggle:()=>void}){return <button type="button" className="round-check" aria-pressed={done} aria-label={label} onClick={onToggle}>{done&&<Check size={15} strokeWidth={3}/>}</button>}
 function App(){
  const [session, setSession] = useState<Session | null>(null)
@@ -194,6 +207,8 @@ useEffect(() => {
 }, [])
 const [data, setData] = useState<AppData>(demoData)
 setReferenceTimeZone(data.timeZone)
+ const [shopOpen,setShopOpen]=useState(false)
+ const [chestBanner,setChestBanner]=useState<string|null>(null)
 const sync = useCloudSync<AppData>({ userId: session?.user?.id, data, setData, prepare: value => rollOverTasks(migrateXp(value)), fallback: demoData })
 const dataLoading = sync.loading
 const dataError = sync.loadError
@@ -257,9 +272,18 @@ useEffect(() => {
  const doneTasks=todaysTasks.filter(t=>t.done).length
  const habitProgress=todaysHabits.length?Math.round(habitsDone/todaysHabits.length*100):0
   const activityDays=new Set([...(data.activityDays||[]),...Object.entries(data.completedHabits).filter(([,ids])=>ids.length>0).map(([day])=>day)])
-  const streakEnd=activityDays.has(todayKey())?makeDate(todayKey()):addDays(makeDate(todayKey()),-1)
-  let activityStreak=0
-  for(let day=streakEnd;activityStreak<20000&&activityDays.has(dateKey(day));day=addDays(day,-1))activityStreak++
+  const activityStreak=streakLength(activityDays,data.frozenDays||[],todayKey())
+  const activeToday=activityDays.has(todayKey())
+  // Coffre d'or quand la série atteint un palier (3, 7, 14, 30… jours).
+  useEffect(()=>{
+   if(dataLoading)return
+   const chest=chestFor(activityStreak,activeToday,data.goldLedger,todayKey())
+   if(!chest)return
+   setData(prev=>({...prev,goldLedger:addGold(prev.goldLedger,chest.key,chest.amount,chest.label)}))
+   setChestBanner(`+${chest.amount} or`)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[activityStreak,activeToday,dataLoading])
+  useEffect(()=>{if(!chestBanner)return;const timer=window.setTimeout(()=>setChestBanner(null),3600);return()=>window.clearTimeout(timer)},[chestBanner])
  const todayEvents=data.events.filter(e=>eventOccursOn(e,todayKey())).sort((a,b)=>a.time.localeCompare(b.time))
  const go=(p:Page)=>{setPage(p);setMobileMoreOpen(false)}
  const toggleHabit=(habitId:string)=>setData(prev=>{
@@ -270,7 +294,7 @@ useEffect(() => {
     ...prev,
     completedHabits:{...prev.completedHabits,[key]:alreadyDone?now.filter(i=>i!==habitId):[...now,habitId]},
      activityDays:alreadyDone?prev.activityDays:Array.from(new Set([...(prev.activityDays||[]),key])),
-    xpLedger: !alreadyDone && habit ? awardXp(prev.xpLedger,`habit:${habitId}:${key}`,'habit',habit.skillIds,xpForDifficulty(habit.difficulty)) : prev.xpLedger
+    ...(!alreadyDone&&habit?earn(prev,`habit:${habitId}:${key}`,'habit',habit.skillIds,habit.difficulty,habit.title):{})
   }
  })
  const toggleEvent=(eventId:string)=>setData(prev=>{
@@ -281,7 +305,7 @@ useEffect(() => {
    ...prev,
    completedEvents:{...(prev.completedEvents||{}),[key]:alreadyDone?now.filter(i=>i!==eventId):[...now,eventId]},
    activityDays:alreadyDone?prev.activityDays:Array.from(new Set([...(prev.activityDays||[]),key])),
-   xpLedger:!alreadyDone&&event?.skillIds?.length?awardXp(prev.xpLedger,`event:${eventId}:${key}`,'event',event.skillIds,xpForDifficulty(event.difficulty)):prev.xpLedger
+   ...(!alreadyDone&&event?earn(prev,`event:${eventId}:${key}`,'event',event.skillIds,event.difficulty,event.title):{})
   }
  })
  const toggleTask=(taskId:string)=>setData(prev=>{
@@ -292,7 +316,7 @@ useEffect(() => {
     ...prev,
     tasks:prev.tasks.map(t=>t.id===taskId?{...t,done:!t.done}:t),
     activityDays:task.done?prev.activityDays:Array.from(new Set([...(prev.activityDays||[]),todayKey()])),
-    xpLedger: !task.done ? awardXp(prev.xpLedger,key,'task',task.skillIds,xpForDifficulty(task.difficulty)) : prev.xpLedger
+    ...(!task.done?earn(prev,key,'task',task.skillIds,task.difficulty,task.title):{})
   }
  })
  const openAdd=(type:'task'|'habit'|'event',date=todayKey())=>{setEditing(null);setFormTitle('');setFormSkillIds([]);setFormCategory('Travail');setFormPeriod('Matin');setFormRecurring(false);setFormDate(date);setFormTime('09:00');setFormEndTime('10:00');setFormRepeatDays([]);setFormDifficulty('moyen');setFormDays([]);setFormSkillsTouched(false);setFormEventXp(false);setModal(type)}
@@ -358,7 +382,7 @@ useEffect(() => {
   const key=task.recurring?`task:${task.id}:${task.date}`:`task:${task.id}`
   return {...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,subtasks,done:complete}:t),
    activityDays:newlyCompleted?Array.from(new Set([...(prev.activityDays||[]),todayKey()])):prev.activityDays,
-   xpLedger:newlyCompleted?awardXp(prev.xpLedger,key,'task',task.skillIds,xpForDifficulty(task.difficulty)):prev.xpLedger}
+   ...(newlyCompleted?earn(prev,key,'task',task.skillIds,task.difficulty,task.title):{})}
  })
  const removeSubtask=(taskId:string,subtaskId:string)=>setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId?{...t,subtasks:(t.subtasks||[]).filter(st=>st.id!==subtaskId)}:t)}))
  const monthDays=useMemo(()=>{const first=new Date(visibleMonth.getFullYear(),visibleMonth.getMonth(),1);const offset=(first.getDay()+6)%7;return Array.from({length:42},(_,i)=>new Date(first.getFullYear(),first.getMonth(),1-offset+i))},[visibleMonth])
@@ -366,7 +390,7 @@ useEffect(() => {
  const selectedCalendarTasks=showCalendarTasks?data.tasks.filter(t=>t.date===selectedDate):[]
  const [quickAdd,setQuickAdd]=useState<QuickAddType|null>(null)
  const [appearanceOpen,setAppearanceOpen]=useState(false)
- const [xpFlash,setXpFlash]=useState<{id:string;amount:number}|null>(null)
+ const [xpFlash,setXpFlash]=useState<{id:string;amount:number;gold?:number}|null>(null)
  const [showDone,setShowDone]=useState(false)
  const [leaving,setLeaving]=useState<string[]>([])
  const [clock,setClock]=useState(()=>new Date())
@@ -375,7 +399,7 @@ useEffect(() => {
  const appearance=dataLoading?cachedAppearance:(data.appearance??cachedAppearance)
  useAppearance(appearance)
  useEffect(()=>{if(!xpFlash)return;const timer=window.setTimeout(()=>setXpFlash(null),1600);return()=>window.clearTimeout(timer)},[xpFlash])
- const anyOverlayOpen=Boolean(notificationsOpen||statsHabitId||modal||pendingDelete||backupOpen||appearanceOpen||timeZoneOpen||quickAdd||mobileMoreOpen)
+ const anyOverlayOpen=Boolean(shopOpen||notificationsOpen||statsHabitId||modal||pendingDelete||backupOpen||appearanceOpen||timeZoneOpen||quickAdd||mobileMoreOpen)
  useEffect(()=>{
   if(anyOverlayOpen)return
   const onKey=(e:KeyboardEvent)=>{
@@ -394,20 +418,20 @@ useEffect(() => {
   const done=completed.includes(h.id)
   toggleHabit(h.id)
   if(!done)keepBriefly(h.id)
-  if(!done&&h.skillIds?.length&&!earned(`habit:${h.id}:${todayKey()}`))setXpFlash({id:h.id,amount:xpForDifficulty(h.difficulty)*(h.skillIds?.length||1)})
+  if(!done&&h.skillIds?.length&&!earned(`habit:${h.id}:${todayKey()}`))setXpFlash({id:h.id,amount:xpForDifficulty(h.difficulty)*xpMultiplier(data)*(h.skillIds?.length||1),gold:GOLD_BY_DIFFICULTY[h.difficulty??'moyen']})
  }
  const checkTask=(t:Task)=>{
   const key=t.recurring?`task:${t.id}:${t.date}`:`task:${t.id}`
   toggleTask(t.id)
   if(!t.done)keepBriefly(t.id)
-  if(!t.done&&t.skillIds?.length&&!earned(key))setXpFlash({id:t.id,amount:xpForDifficulty(t.difficulty)*(t.skillIds?.length||1)})
+  if(!t.done&&t.skillIds?.length&&!earned(key))setXpFlash({id:t.id,amount:xpForDifficulty(t.difficulty)*xpMultiplier(data)*(t.skillIds?.length||1),gold:GOLD_BY_DIFFICULTY[t.difficulty??'moyen']})
  }
  const completedEventsToday=data.completedEvents?.[todayKey()]||[]
  const checkEvent=(ev:Event)=>{
   const done=completedEventsToday.includes(ev.id)
   toggleEvent(ev.id)
   if(!done)keepBriefly(ev.id)
-  if(!done&&ev.skillIds?.length&&!earned(`event:${ev.id}:${todayKey()}`))setXpFlash({id:ev.id,amount:xpForDifficulty(ev.difficulty)*ev.skillIds.length})
+  if(!done&&ev.skillIds?.length&&!earned(`event:${ev.id}:${todayKey()}`))setXpFlash({id:ev.id,amount:xpForDifficulty(ev.difficulty)*xpMultiplier(data)*ev.skillIds.length,gold:GOLD_BY_DIFFICULTY[ev.difficulty??'moyen']})
  }
  const tomorrowKey=dateKey(addDays(makeDate(todayKey()),1))
  // Reporter à demain : la tâche n'est plus due aujourd'hui (pas de pénalité de retard pour aujourd'hui).
@@ -488,6 +512,7 @@ useEffect(() => {
     <button type="button" className="brand mobile-only" onClick={()=>go('dashboard')} aria-label="Forma — revenir à l’accueil"><span className="brand-mark"><Check size={13} strokeWidth={3}/></span><span>forma</span></button>
     <div className="topbar-right">
      <SyncIndicator status={sync.status} mergedAt={sync.mergedAt} onRetry={()=>{void sync.retry()}}/>
+     <button type="button" className="gold-pill" onClick={()=>setShopOpen(true)} aria-label={`${goldBalance(data.goldLedger)} or · ouvrir la boutique`} title="Boutique"><Coin amount={goldBalance(data.goldLedger)}/></button>
      {page!=='dashboard'&&<span className="today-pill desktop-only">{frDate(makeDate(todayKey()),{weekday:'long',day:'numeric',month:'long'})}</span>}
      <div data-forma-settings className="menu-anchor">
       <button type="button" className="icon-button" onClick={()=>setSettingsOpen(v=>!v)} aria-label="Paramètres de Forma" aria-expanded={settingsOpen} title="Paramètres"><Settings size={20}/></button>
@@ -501,7 +526,7 @@ useEffect(() => {
     </div>
    </header>
    <main className="content">
-    {page==='skills'&&<SkillsPage ledger={data.xpLedger}/>}
+    {page==='skills'&&<SkillsPage ledger={data.xpLedger} initial={(session?.user?.email?.[0]||'F').toUpperCase()}/>}
 
     {page==='dashboard'&&<div className="today">
      <section className="today-head">
@@ -509,12 +534,12 @@ useEffect(() => {
       <StreakFlame streak={activityStreak} activeToday={activityDays.has(todayKey())}/>
      </section>
      {dayTotal>0&&<div className="day-progress">
-      <div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>
+      <div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>{(boostActive(data)||data.protectedDays?.includes(todayKey()))&&<div className="game-status">{boostActive(data)&&<span>Boost XP ×2 jusqu’à {new Date(data.boostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{data.protectedDays?.includes(todayKey())&&<span>Journée protégée par un joker</span>}</div>}
       <div className="bar" role="progressbar" aria-label="Progression du jour" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dayProgress}><div style={{width:`${dayProgress}%`}}/></div>
      </div>}
      <section className="list-section today-events">
       <div className="section-head"><h2>Programme</h2><button type="button" className="text-action" onClick={()=>go('calendar')}>Calendrier <ArrowRight size={15}/></button></div>
-      <div className="list-card">{visibleEvents.length?visibleEvents.map(ev=>{const xp=Boolean(ev.skillIds?.length);const done=completedEventsToday.includes(ev.id);return <div className={`event-row ${!xp&&eventPast(ev)?'is-past':''} ${leaving.includes(ev.id)&&!showDone?'is-leaving':''}`} key={ev.id}>{xp&&<RoundCheck done={done} label={`${done?'Annuler':'Valider'} ${ev.title}`} onToggle={()=>checkEvent(ev)}/>}<span className="event-time">{ev.time}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span className={done?'is-done':''}>{ev.title}</span><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}{xp?` · +${xpForDifficulty(ev.difficulty)*(ev.skillIds?.length||0)} XP`:''}</small></div>{xpFlash?.id===ev.id&&<span className="xp-flash" aria-hidden="true">+{xpFlash.amount} XP</span>}</div>}):<Empty message={todayEvents.length?'Plus rien de prévu aujourd’hui.':'Rien de prévu aujourd’hui.'}/>}</div>
+      <div className="list-card">{visibleEvents.length?visibleEvents.map(ev=>{const xp=Boolean(ev.skillIds?.length);const done=completedEventsToday.includes(ev.id);return <div className={`event-row ${!xp&&eventPast(ev)?'is-past':''} ${leaving.includes(ev.id)&&!showDone?'is-leaving':''}`} key={ev.id}>{xp&&<RoundCheck done={done} label={`${done?'Annuler':'Valider'} ${ev.title}`} onToggle={()=>checkEvent(ev)}/>}<span className="event-time">{ev.time}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span className={done?'is-done':''}>{ev.title}</span><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}{xp?` · +${xpForDifficulty(ev.difficulty)*(ev.skillIds?.length||0)} XP`:''}</small></div>{xpFlash?.id===ev.id&&<span className="xp-flash" aria-hidden="true">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}</div>}):<Empty message={todayEvents.length?'Plus rien de prévu aujourd’hui.':'Rien de prévu aujourd’hui.'}/>}</div>
      </section>
      <section className="list-section today-tasks">
       <div className="section-head"><h2>Tâches</h2><button type="button" className="text-action" onClick={()=>go('tasks')}>Tout voir <ArrowRight size={15}/></button></div>
@@ -522,7 +547,7 @@ useEffect(() => {
        <div className="check-row">
         <RoundCheck done={t.done} label={`${t.done?'Rouvrir':'Terminer'} ${t.title}`} onToggle={()=>checkTask(t)}/>
         <div className="row-copy"><span className={t.done?'is-done':''}>{t.title}</span><small>{t.category}{t.recurring?' · chaque jour':''}{subtaskCount(t)?` · ${subtaskCount(t)}`:''}</small></div>
-        {xpFlash?.id===t.id&&<span className="xp-flash">+{xpFlash.amount} XP</span>}
+        {xpFlash?.id===t.id&&<span className="xp-flash">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}
        </div>
       </SwipeRow>):<Empty message={orderedTodayTasks.length?'Toutes tes tâches du jour sont faites.':'Aucune tâche pour aujourd’hui.'}/>}</div>
      </section>
@@ -532,7 +557,7 @@ useEffect(() => {
        <div className="check-row">
         <RoundCheck done={done} label={`${done?'Décocher':'Cocher'} ${h.title}`} onToggle={()=>checkHabit(h)}/>
         <div className="row-copy"><span className={done?'is-done':''}>{h.title}</span><small>{h.period} · {h.category}</small></div>
-        {xpFlash?.id===h.id&&<span className="xp-flash">+{xpFlash.amount} XP</span>}
+        {xpFlash?.id===h.id&&<span className="xp-flash">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}
        </div>
       </SwipeRow>}):<Empty message={sortedHabits.length?'Toutes tes habitudes du jour sont faites.':'Aucune habitude pour le moment.'}/>}</div>
      </section>
@@ -550,7 +575,7 @@ useEffect(() => {
          <button type="button" className="drag-handle" {...habitSort.handleProps(h.id,`Déplacer ${h.title}`)}><GripVertical size={18}/></button>
          <RoundCheck done={done} label={`${done?'Décocher':'Cocher'} ${h.title}`} onToggle={()=>checkHabit(h)}/>
          <div className="row-copy is-tappable" role="button" tabIndex={0} aria-label={`Statistiques de ${h.title}`} onClick={()=>setStatsHabitId(h.id)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setStatsHabitId(h.id)}}}><span className={done?'is-done':''}>{h.title}</span><small>{isScheduledOn(h.days,todayWeekday)?'':'Repos aujourd’hui · '}{h.days?.length?daysLabel(h.days):h.category}{xpMeta(h)?` · ${xpMeta(h)}`:''}</small></div>
-         {xpFlash?.id===h.id&&<span className="xp-flash">+{xpFlash.amount} XP</span>}
+         {xpFlash?.id===h.id&&<span className="xp-flash">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}
          <button type="button" className="small-icon" title="Modifier" aria-label={`Modifier ${h.title}`} onClick={()=>openEdit('habit',h)}><Pencil size={16}/></button>
          <button type="button" className="small-icon" title="Supprimer" aria-label={`Supprimer ${h.title}`} onClick={()=>deleteItem('habit',h.id)}><Trash2 size={16}/></button>
         </div>})}
@@ -575,7 +600,7 @@ useEffect(() => {
          <button type="button" className="drag-handle" data-no-swipe {...taskSort.handleProps(t.id,`Déplacer ${t.title}`)}><GripVertical size={18}/></button>
          <RoundCheck done={t.done} label={`${t.done?'Rouvrir':'Terminer'} ${t.title}`} onToggle={()=>checkTask(t)}/>
          <div className="row-copy"><span className={t.done?'is-done':''}>{t.title}</span><small>{t.date===todayKey()?'Aujourd’hui':frDate(makeDate(t.date),{day:'numeric',month:'short'})}{t.recurring?' · chaque jour':''}{t.dueDate&&t.dueDate<t.date?' · en retard':''} · {xpMeta(t)||t.category}</small></div>
-         {xpFlash?.id===t.id&&<span className="xp-flash">+{xpFlash.amount} XP</span>}
+         {xpFlash?.id===t.id&&<span className="xp-flash">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}
          <button type="button" className="subtask-toggle" aria-label={`Afficher les sous-tâches de ${t.title}`} aria-expanded={expandedTaskId===t.id} onClick={()=>{setExpandedTaskId(expandedTaskId===t.id?null:t.id);setSubtaskDraft('')}}>{subtaskCount(t)&&<span>{subtaskCount(t)}</span>}<ChevronDown size={18} className={expandedTaskId===t.id?'is-flipped':undefined}/></button>
          <button type="button" className="small-icon" title="Modifier" aria-label={`Modifier ${t.title}`} onClick={()=>openEdit('task',t)}><Pencil size={16}/></button>
         </div>
@@ -644,6 +669,7 @@ useEffect(() => {
   {quickAdd&&<QuickAdd initialType={quickAdd} today={todayKey()} tomorrow={tomorrowKey} categories={categories} onClose={()=>setQuickAdd(null)} onSubmit={handleQuickAdd} onMoreOptions={quickAddMore}/>}
   {statsHabitId&&(()=>{const h=data.habits.find(x=>x.id===statsHabitId);return h?<Modal title={h.title} onClose={()=>setStatsHabitId(null)}><HabitStatsView habit={h} completed={data.completedHabits} today={todayKey()} ledger={data.xpLedger}/><div className="form-actions"><button type="button" className="secondary-btn" onClick={()=>{setStatsHabitId(null);openEdit('habit',h)}}><Pencil size={16}/> Modifier</button></div></Modal>:null})()}
   {notificationsOpen&&session?.user?.id&&<Modal title="Notifications" onClose={()=>setNotificationsOpen(false)}><NotificationSettings userId={session.user.id} prefs={data.notifications} onChange={next=>setData(prev=>({...prev,notifications:next}))}/></Modal>}
+  {shopOpen&&<Modal title="Boutique" onClose={()=>setShopOpen(false)}><Shop state={data} today={todayKey()} onChange={next=>setData(prev=>({...prev,...next}))}/></Modal>}
   {timeZoneOpen&&<Modal title="Fuseau horaire" onClose={()=>setTimeZoneOpen(false)}><TimeZoneSettings value={data.timeZone} onChange={zone=>setData(prev=>{const next={...prev};if(zone)next.timeZone=zone;else delete next.timeZone;return next})}/></Modal>}
   {appearanceOpen&&<Modal title="Apparence" onClose={()=>setAppearanceOpen(false)}><AppearanceSettings value={appearance} onChange={updateAppearance}/></Modal>}
   {backupOpen&&<Modal title="Mes sauvegardes" onClose={closeBackup}><div className="backup-panel"><p className="backup-lead">Vos données sont synchronisées avec votre compte. Exportez une copie pour disposer d’une sauvegarde indépendante.</p><div className="backup-stat"><ShieldCheck size={20}/><span><strong>{data.habits.length} habitudes · {data.tasks.length} tâches · {data.events.length} activités · {(data.goals||[]).length} objectifs</strong><small>Votre progression quotidienne est également incluse.</small></span></div><button type="button" className="backup-action backup-export" onClick={exportBackup}><Download size={19}/><span><strong>Exporter ma sauvegarde</strong><small>Télécharger un fichier Forma (.json)</small></span></button><label className="backup-action backup-import"><Upload size={19}/><span><strong>Importer une sauvegarde</strong><small>Choisir un fichier Forma (.json)</small></span><input type="file" accept=".json,application/json" onChange={e=>{void readBackup(e.target.files?.[0]);e.target.value=''}}/></label><div className="auto-backups"><p className="auto-backups-title"><History size={16}/> Sauvegardes automatiques</p>{autoBackups===null?<p className="settings-hint">Chargement…</p>:autoBackups.length===0?<p className="settings-hint">Aucune pour l’instant. Forma en crée une chaque semaine à l’ouverture et garde les 8 dernières.</p>:<ul>{autoBackups.map(b=><li key={b.id}><span>{new Date(b.created_at).toLocaleString('fr-FR',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} <small>{b.reason}</small></span><button type="button" className="text-action" onClick={()=>{void previewAutoBackup(b.id)}}>Voir</button></li>)}</ul>}</div>{backupError&&<p role="alert" className="backup-error">{backupError}</p>}{restorePreview&&<div className="backup-preview"><strong>Sauvegarde prête à restaurer</strong><p>{restorePreview.habits.length} habitudes · {restorePreview.tasks.length} tâches · {restorePreview.events.length} activités</p><p>Attention : la restauration remplacera les données de votre compte sur tous vos appareils. Une copie de l’état actuel est gardée dans les sauvegardes automatiques.</p><div className="backup-actions"><button type="button" className="delete-cancel" onClick={()=>setRestorePreview(null)}>Annuler</button><button type="button" className="backup-confirm" onClick={()=>{void restoreBackup()}} disabled={restoringBackup}>{restoringBackup?"Restauration…":"Restaurer mes données"}</button></div></div>}<p className="backup-footnote">Ce fichier reste sous votre contrôle. Vos données sont synchronisées via votre compte Supabase.</p></div></Modal>}
@@ -670,6 +696,7 @@ useEffect(() => {
    </>}
    <div className="form-actions">{editing&&<button type="button" className="danger-link" onClick={()=>deleteItem(modal,editing)}><Trash2 size={16}/> Supprimer</button>}<button type="button" className="secondary-btn" onClick={()=>setModal(null)}>Annuler</button><button type="submit" className="primary-btn"><Check size={17}/>{editing?'Enregistrer':'Ajouter'}</button></div>
   </form></Modal>}
+  {chestBanner&&!levelUps[0]&&<div className="levelup is-rank" role="status" aria-live="polite"><span className="levelup-icon"><Sparkles size={18}/></span><span><strong>Coffre de série ouvert !</strong><small>{chestBanner} · {activityStreak} jours d’affilée</small></span></div>}
   {levelUps[0]&&<div key={levelUps[0].key} className={`levelup ${levelUps[0].rank?'is-rank':''}`} role="status" aria-live="polite"><span className="levelup-icon"><Sparkles size={18}/></span><span><strong>{levelUps[0].title}</strong><small>{levelUps[0].detail}</small></span></div>}
   {pendingDelete&&<Modal title="Confirmer la suppression" onClose={()=>setPendingDelete(null)}><div className="delete-confirm"><div className="delete-confirm-icon"><Trash2 size={22}/></div><p>Supprimer cet élément ?</p><span>Cette action est irréversible.</span><div className="delete-confirm-actions"><button type="button" className="delete-cancel" onClick={()=>setPendingDelete(null)}>Annuler</button><button type="button" className="delete-danger" onClick={confirmDelete}>Supprimer</button></div></div></Modal>}
  </div>

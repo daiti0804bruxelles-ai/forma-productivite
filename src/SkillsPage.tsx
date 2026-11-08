@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { ChevronRight, X } from 'lucide-react'
+import { SKILL_IDS } from './skillsCatalog'
 import { SKILL_GROUPS } from './skillsCatalog'
 import { domainProgress, skillProgress, rankFor, type XpLedger, type XpProgress } from './xpEngine'
+import type { SkillId } from './skillsCatalog'
 
-const skillNameById: Record<string, string> = Object.fromEntries(SKILL_GROUPS.flatMap(group => group.skills.map(skill => [skill.id, skill.name])))
 const SHORT_NAMES: Record<string, string> = { appearance: 'Physique', health: 'Santé', knowledge: 'Savoir', ambition: 'Ambition', discipline: 'Discipline', relations: 'Relations' }
 
 const CX = 160, CY = 138, R = 88
@@ -124,10 +125,27 @@ function DomainSheet({ groupId, ledger, onClose }: { groupId: string; ledger?: X
   </div>
 }
 
-export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
+type Props = { ledger?: XpLedger; initial: string }
+
+/** Avatar minimaliste dessiné par Forma : silhouette aux couleurs du thème, ton initiale et ton titre de rang. */
+function Avatar({ initial, title, level }: { initial: string; title: string; level: number }) {
+  return <div className="hero-avatar" aria-label={`${title}, niveau moyen ${level}`}>
+    <svg viewBox="0 0 120 150" aria-hidden="true">
+      <circle className="avatar-halo" cx="60" cy="62" r="54" />
+      <path className="avatar-body" d="M18 150c0-30 19-50 42-50s42 20 42 50z" />
+      <circle className="avatar-head" cx="60" cy="54" r="27" />
+      <text className="avatar-initial" x="60" y="64" textAnchor="middle">{initial}</text>
+    </svg>
+    <strong>{title}</strong>
+    <small>Niv. moyen {level}</small>
+  </div>
+}
+
+export default function SkillsPage({ ledger, initial }: Props) {
+  // Titre global : rang du niveau moyen de tes 19 compétences (Novice avant le niveau 5).
+  const meanLevel = Math.floor(SKILL_IDS.reduce((sum, id) => sum + skillProgress(ledger, id as SkillId).level, 0) / SKILL_IDS.length)
+  const title = rankFor(meanLevel) ?? 'Novice'
   const [openId, setOpenId] = useState<string | null>(null)
-  const [showHistory, setShowHistory] = useState(false)
-  const recentEvents = [...(ledger?.events ?? [])].reverse().slice(0, 12)
   const domains: Domain[] = SKILL_GROUPS.map(g => ({ id: g.id, name: g.name, progress: domainProgress(ledger, g.id) }))
   // Lecture rapide : où tu es le plus fort, où il reste le plus à faire (affichée seulement si l'écart est net).
   const scores = domains.map(d => ({ d, score: position(d.progress) }))
@@ -136,7 +154,11 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
   const label = (pick: number) => scores.filter(x => x.score === pick).slice(0, 2).map(x => SHORT_NAMES[x.d.id] ?? x.d.name).join(' · ')
   return <section>
     <div className="page-intro"><div><h1>Compétences</h1></div></div>
-    <div className="panel skills-hero"><Radar domains={domains} onOpen={setOpenId} />
+    <div className="panel skills-hero">
+      <div className="hero-grid">
+        <Avatar initial={initial} title={title} level={meanLevel} />
+        <div className="hero-radar"><Radar domains={domains} onOpen={setOpenId} /></div>
+      </div>
       {showInsight && <p className="skills-insight"><span>Point fort <strong>{label(best)}</strong></span><span>À travailler <strong>{label(worst)}</strong></span></p>}
     </div>
     <div className="domain-list">{domains.map(d => {
@@ -147,28 +169,6 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
         <ChevronRight size={16} aria-hidden="true" />
       </button>
     })}</div>
-    <button type="button" className="text-action history-toggle" aria-expanded={showHistory} onClick={() => setShowHistory(!showHistory)}>{showHistory ? 'Masquer l’historique XP' : 'Historique XP'}</button>
-    {showHistory && <section className="panel" style={{ marginTop: 8, padding: 20 }}>
-      <h2 style={{ fontSize: 17, margin: '0 0 6px' }}>Historique XP</h2>
-      <p style={{ fontSize: 13, opacity: .7, margin: '0 0 18px' }}>12 dernières opérations enregistrées. Les pénalités sont affichées même si ton niveau reste protégé.</p>
-      {recentEvents.length === 0
-        ? <p style={{ opacity: .65, fontSize: 13 }}>Aucune opération XP pour le moment.</p>
-        : <div style={{ display: 'grid', gap: 12 }}>
-          {recentEvents.map(event => {
-            const labels: Record<string, string> = { habit: 'Habitude validée', task: 'Tâche validée', goal: 'Objectif atteint', penalty: 'Pénalité' }
-            const eventDay = event.source === 'penalty' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(event.key.slice(-10)) ? event.key.slice(-10) : event.at
-            const skillNames = event.skillIds.map(id => skillNameById[id] ?? id).join(' · ')
-            return <div key={event.key} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 14, paddingBottom: 12, borderBottom: '1px solid rgba(120,120,128,.12)' }}>
-              <div style={{ minWidth: 0 }}>
-                <strong style={{ fontSize: 13 }}>{labels[event.source]}</strong>
-                <div style={{ fontSize: 12, opacity: .7, marginTop: 4, overflowWrap: 'anywhere' }}>{skillNames}</div>
-                <time dateTime={eventDay} style={{ display: 'block', fontSize: 11, opacity: .55, marginTop: 4 }}>{Number.isNaN(Date.parse(eventDay)) ? '' : new Date(eventDay.includes('T') ? eventDay : `${eventDay}T12:00:00`).toLocaleDateString('fr-FR')}</time>
-              </div>
-              <strong style={{ whiteSpace: 'nowrap', fontSize: 13, color: event.amountPerSkill < 0 ? 'var(--danger)' : 'var(--success)' }}>{event.amountPerSkill > 0 ? '+' : ''}{event.amountPerSkill.toLocaleString('fr-FR')} XP / compétence</strong>
-            </div>
-          })}
-        </div>}
-    </section>}
     {openId && <DomainSheet groupId={openId} ledger={ledger} onClose={() => setOpenId(null)} />}
   </section>
 }
