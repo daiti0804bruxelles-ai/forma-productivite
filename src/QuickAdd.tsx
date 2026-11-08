@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { X } from 'lucide-react'
 import SkillSelector from './SkillSelector'
@@ -6,6 +6,7 @@ import { suggestSkills } from './skillSuggest'
 import type { SkillId } from './skillsCatalog'
 import { DIFFICULTIES, type Difficulty } from './xpEngine'
 import { WEEKDAYS, toggleWeekday, isScheduledOn } from './weekdays'
+import { parseQuickText } from './quickParse'
 
 export type QuickAddType = 'task' | 'habit' | 'event'
 type Period = 'Matin' | 'Après-midi' | 'Soir'
@@ -26,7 +27,7 @@ type Props = {
 
 const TYPES: { id: QuickAddType; label: string }[] = [{ id: 'task', label: 'Tâche' }, { id: 'habit', label: 'Habitude' }, { id: 'event', label: 'Activité' }]
 const PERIODS: Period[] = ['Matin', 'Après-midi', 'Soir']
-const PLACEHOLDERS: Record<QuickAddType, string> = { task: 'Que veux-tu faire ?', habit: 'Ex. : Méditer 10 minutes', event: 'Ex. : Séance de sport' }
+const PLACEHOLDERS: Record<QuickAddType, string> = { task: 'Ex. : Appeler le comptable demain 14h', habit: 'Ex. : Méditer 10 minutes', event: 'Ex. : Séance de sport' }
 
 function Chip({ selected, onClick, children }: { selected: boolean; onClick: () => void; children: string }) {
   return <button type="button" className="chip" aria-pressed={selected} onClick={onClick}>{children}</button>
@@ -46,12 +47,33 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
   const [skills, setSkills] = useState<SkillId[]>([])
   const [skillsTouched, setSkillsTouched] = useState(false)
   const [days, setDays] = useState<number[]>([])
+  const [ignoreParse, setIgnoreParse] = useState(false)
+  const [autoEvent, setAutoEvent] = useState(false)
+  // Ajout malin : « demain », « lundi », « le 15 », « tous les jours », « 14h »… règlent les champs tout seuls.
+  const parsed = useMemo(() => type === 'habit' || ignoreParse ? null : parseQuickText(title, today), [title, today, type, ignoreParse])
+  const parsedKey = parsed ? `${parsed.date ?? ''}|${parsed.time ?? ''}|${parsed.everyDay ? 1 : 0}` : ''
+  useEffect(() => {
+    if (!parsed || !parsed.labels.length) return
+    if (parsed.time) {
+      setType('event'); setAutoEvent(true); setTime(parsed.time)
+      const [h, m] = parsed.time.split(':').map(Number)
+      setEndTime(h >= 23 ? '23:59' : `${String(h + 1).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
+    }
+    if (parsed.everyDay && !parsed.time) { setEveryDay(true); setPickDate(false); setDate(today) }
+    if (parsed.date) { setDate(parsed.date); setPickDate(false); setEveryDay(false) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parsedKey])
+  const cleanTitle = parsed?.labels.length ? parsed.title : title.trim()
+  const ignore = () => {
+    setIgnoreParse(true); setDate(today); setEveryDay(false); setPickDate(false)
+    if (autoEvent) { setType(initialType); setAutoEvent(false) }
+  }
 
   // Tant que tu n'as pas modifié les compétences, Forma les propose d'après le nom.
   useEffect(() => {
     if (skillsTouched || type === 'event') return
-    setSkills(title.trim() ? suggestSkills(title, category, type === 'habit' ? 'habit' : 'task') : [])
-  }, [title, category, type, skillsTouched])
+    setSkills(cleanTitle ? suggestSkills(cleanTitle, category, type === 'habit' || everyDay ? 'habit' : 'task') : [])
+  }, [cleanTitle, category, type, skillsTouched, everyDay])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -62,7 +84,7 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
   const invalidTime = type === 'event' && endTime <= time
   const submit = (e: FormEvent) => {
     e.preventDefault()
-    const clean = title.trim()
+    const clean = cleanTitle
     if (!clean || invalidTime) return
     if (type === 'task') onSubmit({ type, title: clean, category, date: everyDay ? today : date, recurring: everyDay, difficulty, skillIds: skills })
     else if (type === 'habit') onSubmit({ type, title: clean, category, period, difficulty, skillIds: skills, days: days.length ? days : undefined })
@@ -75,7 +97,7 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
       <div className="sheet-grabber" aria-hidden="true" />
       <div className="sheet-head">
         <div className="segmented" role="tablist" aria-label="Type d'élément">
-          {TYPES.map(t => <button key={t.id} type="button" role="tab" aria-selected={type === t.id} onClick={() => { setType(t.id); if (t.id !== 'task') setEveryDay(false) }}>{t.label}</button>)}
+          {TYPES.map(t => <button key={t.id} type="button" role="tab" aria-selected={type === t.id} onClick={() => { setType(t.id); setAutoEvent(false); if (t.id !== 'task') setEveryDay(false) }}>{t.label}</button>)}
         </div>
         <button type="button" className="icon-button" aria-label="Fermer" onClick={onClose}><X size={20} /></button>
       </div>
@@ -84,6 +106,10 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
         <span>Nom</span>
         <input autoFocus required maxLength={100} value={title} onChange={e => setTitle(e.target.value)} placeholder={PLACEHOLDERS[type]} enterKeyHint="done" />
       </label>
+      {parsed && parsed.labels.length > 0 && <p className="quick-understood" role="status">
+        <span>Compris : <strong>{parsed.labels.join(' · ')}</strong>{autoEvent && type === 'event' ? ' → activité' : ''}{parsed.title !== title.trim() ? <> · « {parsed.title} »</> : null}</span>
+        <button type="button" className="text-action" onClick={ignore}>Ignorer</button>
+      </p>}
 
       {type === 'habit' ? <>
         <div className="field">

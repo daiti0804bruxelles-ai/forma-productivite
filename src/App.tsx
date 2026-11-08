@@ -22,6 +22,7 @@ import { createBackup, ensureWeeklyBackup, listBackups, readBackupData, type Bac
 import { currentDayKey, isValidTimeZone, setReferenceTimeZone } from './timeZone'
 import TimeZoneSettings from './TimeZoneSettings'
 import SyncIndicator from './SyncIndicator'
+import HabitStatsView from './HabitStatsView'
 import type { Session } from '@supabase/supabase-js'
 import SwipeRow from './SwipeRow'
 import StreakFlame from './StreakFlame'
@@ -300,6 +301,7 @@ useEffect(() => {
  const confirmDelete=()=>{if(!pendingDelete)return;const {type,id:itemId}=pendingDelete;setData(prev=>type==='task'?{...prev,tasks:prev.tasks.filter(t=>t.id!==itemId)}:type==='event'?{...prev,events:prev.events.filter(e=>e.id!==itemId)}:{...prev,habits:prev.habits.filter(h=>h.id!==itemId)});setPendingDelete(null);setModal(null)}
  const [autoBackups,setAutoBackups]=useState<BackupInfo[]|null>(null)
  const [timeZoneOpen,setTimeZoneOpen]=useState(false)
+ const [statsHabitId,setStatsHabitId]=useState<string|null>(null)
  const openBackup=()=>{setBackupError('');setRestorePreview(null);setBackupOpen(true);setSettingsOpen(false);setAutoBackups(null);if(session?.user?.id)listBackups(session.user.id).then(setAutoBackups).catch(()=>setAutoBackups([]))}
  const previewAutoBackup=async(backupId:string)=>{
   if(!session?.user?.id)return
@@ -369,7 +371,7 @@ useEffect(() => {
  const appearance=dataLoading?cachedAppearance:(data.appearance??cachedAppearance)
  useAppearance(appearance)
  useEffect(()=>{if(!xpFlash)return;const timer=window.setTimeout(()=>setXpFlash(null),1600);return()=>window.clearTimeout(timer)},[xpFlash])
- const anyOverlayOpen=Boolean(modal||pendingDelete||backupOpen||appearanceOpen||timeZoneOpen||quickAdd||mobileMoreOpen)
+ const anyOverlayOpen=Boolean(statsHabitId||modal||pendingDelete||backupOpen||appearanceOpen||timeZoneOpen||quickAdd||mobileMoreOpen)
  useEffect(()=>{
   if(anyOverlayOpen)return
   const onKey=(e:KeyboardEvent)=>{
@@ -404,6 +406,8 @@ useEffect(() => {
   if(!done&&ev.skillIds?.length&&!earned(`event:${ev.id}:${todayKey()}`))setXpFlash({id:ev.id,amount:xpForDifficulty(ev.difficulty)*ev.skillIds.length})
  }
  const tomorrowKey=dateKey(addDays(makeDate(todayKey()),1))
+ // Reporter à demain : la tâche n'est plus due aujourd'hui (pas de pénalité de retard pour aujourd'hui).
+ const postponeTask=(taskId:string)=>{setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId&&!t.recurring?{...t,date:tomorrowKey,dueDate:undefined}:t)}));keepBriefly(taskId)}
  const handleQuickAdd=(item:QuickAddPayload)=>{
   if(item.type==='task')setData(prev=>({...prev,tasks:[...prev.tasks,{id:id(),title:item.title,date:item.date,recurring:item.recurring,category:item.category,done:false,skillIds:item.skillIds,difficulty:item.difficulty,createdOn:todayKey()}]}))
   else if(item.type==='habit')setData(prev=>({...prev,habits:[...prev.habits,{id:id(),title:item.title,period:item.period,category:item.category,skillIds:item.skillIds,difficulty:item.difficulty,days:item.days,createdOn:todayKey()}]}))
@@ -509,7 +513,7 @@ useEffect(() => {
      </section>
      <section className="list-section today-tasks">
       <div className="section-head"><h2>Tâches</h2><button type="button" className="text-action" onClick={()=>go('tasks')}>Tout voir <ArrowRight size={15}/></button></div>
-      <div className="list-card">{visibleTasks.length?visibleTasks.map(t=><SwipeRow key={t.id} className={leaving.includes(t.id)&&!showDone?'is-leaving':''} done={t.done} onComplete={()=>checkTask(t)} onDelete={()=>deleteItem('task',t.id)}>
+      <div className="list-card">{visibleTasks.length?visibleTasks.map(t=><SwipeRow key={t.id} className={leaving.includes(t.id)&&!showDone?'is-leaving':''} done={t.done} onComplete={()=>checkTask(t)} onPostpone={!t.recurring&&!t.done?()=>postponeTask(t.id):undefined} onDelete={()=>deleteItem('task',t.id)}>
        <div className="check-row">
         <RoundCheck done={t.done} label={`${t.done?'Rouvrir':'Terminer'} ${t.title}`} onToggle={()=>checkTask(t)}/>
         <div className="row-copy"><span className={t.done?'is-done':''}>{t.title}</span><small>{t.category}{t.recurring?' · chaque jour':''}{subtaskCount(t)?` · ${subtaskCount(t)}`:''}</small></div>
@@ -540,7 +544,7 @@ useEffect(() => {
         {ids.flatMap(habitId=>{const h=habitById.get(habitId);return h?[h]:[]}).map(h=>{const done=completed.includes(h.id);return <div key={h.id} {...habitSort.rowProps(h.id)} className={`check-row ${habitSort.activeId===h.id?'is-placeholder':''} ${isScheduledOn(h.days,todayWeekday)?'':'is-rest'}`}>
          <button type="button" className="drag-handle" {...habitSort.handleProps(h.id,`Déplacer ${h.title}`)}><GripVertical size={18}/></button>
          <RoundCheck done={done} label={`${done?'Décocher':'Cocher'} ${h.title}`} onToggle={()=>checkHabit(h)}/>
-         <div className="row-copy"><span className={done?'is-done':''}>{h.title}</span><small>{isScheduledOn(h.days,todayWeekday)?'':'Repos aujourd’hui · '}{h.days?.length?daysLabel(h.days):h.category}{xpMeta(h)?` · ${xpMeta(h)}`:''}</small></div>
+         <div className="row-copy is-tappable" role="button" tabIndex={0} aria-label={`Statistiques de ${h.title}`} onClick={()=>setStatsHabitId(h.id)} onKeyDown={e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();setStatsHabitId(h.id)}}}><span className={done?'is-done':''}>{h.title}</span><small>{isScheduledOn(h.days,todayWeekday)?'':'Repos aujourd’hui · '}{h.days?.length?daysLabel(h.days):h.category}{xpMeta(h)?` · ${xpMeta(h)}`:''}</small></div>
          {xpFlash?.id===h.id&&<span className="xp-flash">+{xpFlash.amount} XP</span>}
          <button type="button" className="small-icon" title="Modifier" aria-label={`Modifier ${h.title}`} onClick={()=>openEdit('habit',h)}><Pencil size={16}/></button>
          <button type="button" className="small-icon" title="Supprimer" aria-label={`Supprimer ${h.title}`} onClick={()=>deleteItem('habit',h.id)}><Trash2 size={16}/></button>
@@ -561,7 +565,7 @@ useEffect(() => {
      </div>
      <div className="list-card" {...taskSort.listProps('list')}>
       {sortedTaskRows.map(t=><div key={t.id} {...taskSort.rowProps(t.id)} className={`task-item ${taskSort.activeId===t.id?'is-placeholder':''}`}>
-       <SwipeRow done={t.done} onComplete={()=>checkTask(t)} onDelete={()=>deleteItem('task',t.id)}>
+       <SwipeRow done={t.done} onComplete={()=>checkTask(t)} onPostpone={!t.recurring&&!t.done&&t.date<=todayKey()?()=>postponeTask(t.id):undefined} onDelete={()=>deleteItem('task',t.id)}>
         <div className="check-row">
          <button type="button" className="drag-handle" data-no-swipe {...taskSort.handleProps(t.id,`Déplacer ${t.title}`)}><GripVertical size={18}/></button>
          <RoundCheck done={t.done} label={`${t.done?'Rouvrir':'Terminer'} ${t.title}`} onToggle={()=>checkTask(t)}/>
@@ -633,6 +637,7 @@ useEffect(() => {
   </div></div>}
 
   {quickAdd&&<QuickAdd initialType={quickAdd} today={todayKey()} tomorrow={tomorrowKey} categories={categories} onClose={()=>setQuickAdd(null)} onSubmit={handleQuickAdd} onMoreOptions={quickAddMore}/>}
+  {statsHabitId&&(()=>{const h=data.habits.find(x=>x.id===statsHabitId);return h?<Modal title={h.title} onClose={()=>setStatsHabitId(null)}><HabitStatsView habit={h} completed={data.completedHabits} today={todayKey()} ledger={data.xpLedger}/><div className="form-actions"><button type="button" className="secondary-btn" onClick={()=>{setStatsHabitId(null);openEdit('habit',h)}}><Pencil size={16}/> Modifier</button></div></Modal>:null})()}
   {timeZoneOpen&&<Modal title="Fuseau horaire" onClose={()=>setTimeZoneOpen(false)}><TimeZoneSettings value={data.timeZone} onChange={zone=>setData(prev=>{const next={...prev};if(zone)next.timeZone=zone;else delete next.timeZone;return next})}/></Modal>}
   {appearanceOpen&&<Modal title="Apparence" onClose={()=>setAppearanceOpen(false)}><AppearanceSettings value={appearance} onChange={updateAppearance}/></Modal>}
   {backupOpen&&<Modal title="Mes sauvegardes" onClose={closeBackup}><div className="backup-panel"><p className="backup-lead">Vos données sont synchronisées avec votre compte. Exportez une copie pour disposer d’une sauvegarde indépendante.</p><div className="backup-stat"><ShieldCheck size={20}/><span><strong>{data.habits.length} habitudes · {data.tasks.length} tâches · {data.events.length} activités · {(data.goals||[]).length} objectifs</strong><small>Votre progression quotidienne est également incluse.</small></span></div><button type="button" className="backup-action backup-export" onClick={exportBackup}><Download size={19}/><span><strong>Exporter ma sauvegarde</strong><small>Télécharger un fichier Forma (.json)</small></span></button><label className="backup-action backup-import"><Upload size={19}/><span><strong>Importer une sauvegarde</strong><small>Choisir un fichier Forma (.json)</small></span><input type="file" accept=".json,application/json" onChange={e=>{void readBackup(e.target.files?.[0]);e.target.value=''}}/></label><div className="auto-backups"><p className="auto-backups-title"><History size={16}/> Sauvegardes automatiques</p>{autoBackups===null?<p className="settings-hint">Chargement…</p>:autoBackups.length===0?<p className="settings-hint">Aucune pour l’instant. Forma en crée une chaque semaine à l’ouverture et garde les 8 dernières.</p>:<ul>{autoBackups.map(b=><li key={b.id}><span>{new Date(b.created_at).toLocaleString('fr-FR',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} <small>{b.reason}</small></span><button type="button" className="text-action" onClick={()=>{void previewAutoBackup(b.id)}}>Voir</button></li>)}</ul>}</div>{backupError&&<p role="alert" className="backup-error">{backupError}</p>}{restorePreview&&<div className="backup-preview"><strong>Sauvegarde prête à restaurer</strong><p>{restorePreview.habits.length} habitudes · {restorePreview.tasks.length} tâches · {restorePreview.events.length} activités</p><p>Attention : la restauration remplacera les données de votre compte sur tous vos appareils. Une copie de l’état actuel est gardée dans les sauvegardes automatiques.</p><div className="backup-actions"><button type="button" className="delete-cancel" onClick={()=>setRestorePreview(null)}>Annuler</button><button type="button" className="backup-confirm" onClick={()=>{void restoreBackup()}} disabled={restoringBackup}>{restoringBackup?"Restauration…":"Restaurer mes données"}</button></div></div>}<p className="backup-footnote">Ce fichier reste sous votre contrôle. Vos données sont synchronisées via votre compte Supabase.</p></div></Modal>}
@@ -645,6 +650,7 @@ useEffect(() => {
    {modal!=='event'&&<div className="field"><span>Difficulté</span><div className="chips">{DIFFICULTIES.map(d=><button key={d.id} type="button" className="chip" aria-pressed={formDifficulty===d.id} onClick={()=>setFormDifficulty(d.id)}>{d.label} <small>{d.xp} XP</small></button>)}</div></div>}
    {modal!=='event'&&<SkillSelector value={formSkillIds} onChange={next=>{setFormSkillsTouched(true);setFormSkillIds(next)}} hint={!editing&&!formSkillsTouched?'Suggestion automatique d’après le nom.':undefined}/>}
    {modal!=='habit'&&<label>Date<input type="date" required value={formDate} onChange={e=>setFormDate(e.target.value)}/></label>}
+   {modal==='task'&&!formRecurring&&formDate<=todayKey()&&<button type="button" className="chip postpone-chip" onClick={()=>setFormDate(tomorrowKey)}><ArrowRight size={15}/> Reporter à demain</button>}
    {modal==='event'&&<>
     <div className="field-row"><label>Début<input type="time" required value={formTime} onChange={e=>setFormTime(e.target.value)}/></label><label>Fin<input type="time" required min={formTime} value={formEndTime} onChange={e=>setFormEndTime(e.target.value)}/></label></div>
     {formEndTime<=formTime&&<p role="alert" className="form-error">L’heure de fin doit être après l’heure de début.</p>}
