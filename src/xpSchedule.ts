@@ -12,6 +12,10 @@ export type ScheduledData<H extends ScheduledHabit, T extends ScheduledTask> = {
   completedHabits: Record<string, string[]>
   xpLedger?: XpLedger
   lastPenaltyCheckDate?: string
+  activityDays?: string[]
+  protectedDays?: string[]
+  frozenDays?: string[]
+  inventory?: { joker?: number; shield?: number }
 }
 const toDate = (s: string) => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d) }
 const keyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -28,12 +32,20 @@ export function rollOverTasks<H extends ScheduledHabit, T extends ScheduledTask>
   const lastCheck = value.lastPenaltyCheckDate
   let xpLedger = value.xpLedger
   let nextCheck = today
+  let frozenDays = value.frozenDays
+  let shields = value.inventory?.shield ?? 0
   if (lastCheck && lastCheck < today) {
     let day = toDate(lastCheck)
     let processed = 0
     while (keyOf(day) < today && processed < 366) {
       const key = keyOf(day)
       const overdueDay = keyOf(nextDay(day))
+      // Protection de série : un jour sans rien validé, juste après un jour actif, est sauvé automatiquement.
+      const before = new Date(day); before.setDate(before.getDate() - 1)
+      const active = new Set([...(value.activityDays ?? []), ...(frozenDays ?? [])])
+      if (shields > 0 && !active.has(key) && active.has(keyOf(before))) { frozenDays = [...(frozenDays ?? []), key]; shields-- }
+      // Joker : journée protégée, aucune pénalité.
+      if (value.protectedDays?.includes(key)) { day = nextDay(day); processed++; continue }
       for (const habit of value.habits) {
         if (habit.createdOn && habit.createdOn > key) continue
         // Jour de repos prévu : pas de pénalité.
@@ -78,6 +90,7 @@ export function rollOverTasks<H extends ScheduledHabit, T extends ScheduledTask>
     return [{ ...task, date: today, dueDate: task.dueDate || task.date }]
   }) as T[]
   if (tasks.length === value.tasks.length && tasks.every((task,i) => task === value.tasks[i]) &&
-      value.lastPenaltyCheckDate === nextCheck && xpLedger === value.xpLedger) return value
-  return { ...value, tasks, xpLedger, lastPenaltyCheckDate: nextCheck }
+      value.lastPenaltyCheckDate === nextCheck && xpLedger === value.xpLedger && frozenDays === value.frozenDays) return value
+  const inventory = frozenDays === value.frozenDays ? value.inventory : { ...(value.inventory ?? {}), shield: shields }
+  return { ...value, tasks, xpLedger, lastPenaltyCheckDate: nextCheck, frozenDays, inventory }
 }

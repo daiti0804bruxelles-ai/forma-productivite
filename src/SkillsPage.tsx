@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
-import { ChevronRight, X } from 'lucide-react'
+import { ChevronRight, X, ShoppingBag, Upload } from 'lucide-react'
+import { AvatarImage } from './avatarStorage'
+import AvatarCreationPrototype from './AvatarCreationPrototype'
+import { Coin } from './Shop'
 import { SKILL_GROUPS } from './skillsCatalog'
 import { domainProgress, skillProgress, rankFor, type XpLedger, type XpProgress } from './xpEngine'
 
@@ -124,7 +127,10 @@ function DomainSheet({ groupId, ledger, onClose }: { groupId: string; ledger?: X
   </div>
 }
 
-export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
+type Props = { ledger?: XpLedger; gold: number; avatarPath?: string; avatarUpdatedAt?: string; userId?: string; onAvatarSaved: (path: string) => void; onOpenShop: () => void }
+
+export default function SkillsPage({ ledger, gold, avatarPath, avatarUpdatedAt, userId, onAvatarSaved, onOpenShop }: Props) {
+  const [importOpen, setImportOpen] = useState(false)
   const [openId, setOpenId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
   const recentEvents = [...(ledger?.events ?? [])].reverse().slice(0, 12)
@@ -136,7 +142,15 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
   const label = (pick: number) => scores.filter(x => x.score === pick).slice(0, 2).map(x => SHORT_NAMES[x.d.id] ?? x.d.name).join(' · ')
   return <section>
     <div className="page-intro"><div><h1>Compétences</h1></div></div>
-    <div className="panel skills-hero"><Radar domains={domains} onOpen={setOpenId} />
+    <div className="panel skills-hero">
+      <div className="hero-grid">
+        <button type="button" className="hero-character" onClick={() => setImportOpen(true)} aria-label={avatarPath ? 'Changer l’image de mon personnage' : 'Importer mon personnage'}>
+          {avatarPath ? <AvatarImage path={avatarPath} revision={avatarUpdatedAt} alt="Mon personnage" style={{ objectFit: 'contain', objectPosition: 'center bottom' }} />
+            : <span className="hero-placeholder"><svg viewBox="0 0 60 120" aria-hidden="true"><circle cx="30" cy="18" r="13" /><path d="M10 112V62c0-14 9-24 20-24s20 10 20 24v50" /></svg><small><Upload size={14} /> Importer</small></span>}
+        </button>
+        <div className="hero-radar"><Radar domains={domains} onOpen={setOpenId} /></div>
+      </div>
+      <div className="hero-bar"><Coin amount={gold} /><button type="button" className="text-action" onClick={onOpenShop}><ShoppingBag size={16} /> Boutique</button></div>
       {showInsight && <p className="skills-insight"><span>Point fort <strong>{label(best)}</strong></span><span>À travailler <strong>{label(worst)}</strong></span></p>}
     </div>
     <div className="domain-list">{domains.map(d => {
@@ -169,6 +183,12 @@ export default function SkillsPage({ ledger }: { ledger?: XpLedger }) {
           })}
         </div>}
     </section>}
+    {importOpen && userId && <div className="sheet-backdrop" onMouseDown={() => setImportOpen(false)}>
+      <div className="sheet" role="dialog" aria-modal="true" aria-label="Mon personnage" onMouseDown={e => e.stopPropagation()}>
+        <div className="sheet-head skill-sheet-head"><h2>Mon personnage</h2><button type="button" className="icon-button" aria-label="Fermer" onClick={() => setImportOpen(false)}><X size={20} /></button></div>
+        <AvatarCreationPrototype userId={userId} onSaved={path => { onAvatarSaved(path); setImportOpen(false) }} />
+      </div>
+    </div>}
     {openId && <DomainSheet groupId={openId} ledger={ledger} onClose={() => setOpenId(null)} />}
   </section>
 }
