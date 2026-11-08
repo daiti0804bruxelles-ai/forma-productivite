@@ -15,7 +15,7 @@ import { isValidGoal, progressPercent } from './goalModel'
 import { awardXp, awardCompletedGoals, isValidXpLedger, isDifficulty, xpForDifficulty, difficultyLabel, DIFFICULTIES, MAX_SKILLS_PER_ITEM, skillProgress, rankFor, type Difficulty, type XpLedger, type XpSource } from './xpEngine'
 import { suggestSkills, skillName } from './skillSuggest'
 import { GOLD_BY_DIFFICULTY, addGold, chestFor, goldBalance, isGoldLedger, isInventory, isReward, streakLength, xpMultiplier, boostActive, type GameState } from './game'
-import Shop from './Shop'
+import Shop, { Coin } from './Shop'
 import { WEEKDAYS, toggleWeekday, isScheduledOn, daysLabel } from './weekdays'
 import { SKILL_GROUPS } from './skillsCatalog'
 import { rollOverTasks as advanceDay, eventOccursOn } from './xpSchedule'
@@ -512,6 +512,7 @@ useEffect(() => {
     <button type="button" className="brand mobile-only" onClick={()=>go('dashboard')} aria-label="Forma — revenir à l’accueil"><span className="brand-mark"><Check size={13} strokeWidth={3}/></span><span>forma</span></button>
     <div className="topbar-right">
      <SyncIndicator status={sync.status} mergedAt={sync.mergedAt} onRetry={()=>{void sync.retry()}}/>
+     <button type="button" className="gold-pill" onClick={()=>setShopOpen(true)} aria-label={`${goldBalance(data.goldLedger)} or · ouvrir la boutique`} title="Boutique"><Coin amount={goldBalance(data.goldLedger)}/></button>
      {page!=='dashboard'&&<span className="today-pill desktop-only">{frDate(makeDate(todayKey()),{weekday:'long',day:'numeric',month:'long'})}</span>}
      <div data-forma-settings className="menu-anchor">
       <button type="button" className="icon-button" onClick={()=>setSettingsOpen(v=>!v)} aria-label="Paramètres de Forma" aria-expanded={settingsOpen} title="Paramètres"><Settings size={20}/></button>
@@ -525,7 +526,7 @@ useEffect(() => {
     </div>
    </header>
    <main className="content">
-    {page==='skills'&&<SkillsPage ledger={data.xpLedger} gold={goldBalance(data.goldLedger)} avatarPath={data.avatarPath} avatarUpdatedAt={data.avatarUpdatedAt} userId={session?.user?.id} onAvatarSaved={path=>setData(prev=>({...prev,avatarPath:path,avatarUpdatedAt:new Date().toISOString()}))} onOpenShop={()=>setShopOpen(true)}/>}
+    {page==='skills'&&<SkillsPage ledger={data.xpLedger} initial={(session?.user?.email?.[0]||'F').toUpperCase()}/>}
 
     {page==='dashboard'&&<div className="today">
      <section className="today-head">

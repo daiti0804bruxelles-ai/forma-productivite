@@ -1,25 +1,32 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Trash2 } from 'lucide-react'
-import { PERKS, boostActive, buy, goldBalance, applyJoker, type GameState, type PerkId, type Reward } from './game'
+import { Flame, Plus, Shield, Trash2, Zap } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
+import { PERKS, boostActive, buy, goldBalance, applyJoker, type GameState, type PerkId } from './game'
 
 type Props = { state: GameState; today: string; onChange: (next: GameState) => void }
 const tomorrowOf = (day: string) => { const [y, m, d] = day.split('-').map(Number); const x = new Date(y, m - 1, d + 1); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}` }
 const pick = (s: GameState): GameState => ({ goldLedger: s.goldLedger, rewards: s.rewards, inventory: s.inventory, protectedDays: s.protectedDays, boostUntil: s.boostUntil })
-
-export function Coin({ amount }: { amount: number }) {
-  return <span className="coin-amount"><span className="coin" aria-hidden="true" />{amount.toLocaleString('fr-FR')} <small>or</small></span>
+const PERK_UI: Record<PerkId, { icon: LucideIcon; short: string; hint: string }> = {
+  joker: { icon: Shield, short: 'Joker', hint: 'Une journée sans pénalité' },
+  shield: { icon: Flame, short: 'Série', hint: 'Sauve ta flamme un jour vide (automatique)' },
+  boost: { icon: Zap, short: 'Boost ×2', hint: 'XP doublée pendant 24 h' },
 }
 
-/** Boutique : bonus de jeu + récompenses réelles définies par toi. Chaque achat demande une confirmation. */
+export function Coin({ amount }: { amount: number }) {
+  return <span className="coin-amount"><span className="coin" aria-hidden="true" />{amount.toLocaleString('fr-FR')}</span>
+}
+
+/** Boutique épurée : 3 bonus en cartes, tes récompenses avec leur progression. Achat en deux touches. */
 export default function Shop({ state, today, onChange }: Props) {
   const balance = goldBalance(state.goldLedger)
   const [confirm, setConfirm] = useState<string | null>(null)
+  const [adding, setAdding] = useState(false)
   const [title, setTitle] = useState('')
   const [price, setPrice] = useState('')
   const rewards = state.rewards ?? []
   const tomorrow = tomorrowOf(today)
-  const history = [...(state.goldLedger?.events ?? [])].filter(e => e.amount < 0 || e.key.startsWith('chest:')).reverse().slice(0, 8)
+  const jokers = state.inventory?.joker ?? 0
 
   const purchase = (id: string, item: Parameters<typeof buy>[1]) => {
     if (confirm !== id) { setConfirm(id); return }
@@ -32,64 +39,57 @@ export default function Shop({ state, today, onChange }: Props) {
     e.preventDefault()
     const value = Number(price)
     if (!title.trim() || !Number.isInteger(value) || value <= 0) return
-    const reward: Reward = { id: Math.random().toString(36).slice(2, 10), title: title.trim().slice(0, 80), price: Math.min(value, 100000) }
-    onChange(pick({ ...state, rewards: [...rewards, reward] }))
-    setTitle(''); setPrice('')
+    onChange(pick({ ...state, rewards: [...rewards, { id: Math.random().toString(36).slice(2, 10), title: title.trim().slice(0, 80), price: Math.min(value, 100000) }] }))
+    setTitle(''); setPrice(''); setAdding(false)
   }
-  const owned = (id: PerkId) => id === 'boost' ? 0 : state.inventory?.[id] ?? 0
 
   return <div className="shop">
     <div className="shop-balance"><span>Ton or</span><Coin amount={balance} /></div>
 
-    <section className="settings-group">
-      <h3>Bonus</h3>
-      <div className="shop-list">
-        {PERKS.map(perk => {
-          const id = `perk-${perk.id}`
-          const affordable = balance >= perk.price
-          return <div className="shop-item" key={perk.id}>
-            <div className="shop-item-copy">
-              <strong>{perk.name}{owned(perk.id) ? <small className="owned"> · {owned(perk.id)} en réserve</small> : null}{perk.id === 'boost' && boostActive(state) ? <small className="owned"> · actif</small> : null}</strong>
-              <small>{perk.description}</small>
-              {perk.id === 'joker' && owned('joker') > 0 && <div className="shop-actions">
-                <button type="button" className="chip" disabled={state.protectedDays?.includes(today)} onClick={() => protect(today)}>{state.protectedDays?.includes(today) ? 'Aujourd’hui protégé' : 'Protéger aujourd’hui'}</button>
-                <button type="button" className="chip" disabled={state.protectedDays?.includes(tomorrow)} onClick={() => protect(tomorrow)}>{state.protectedDays?.includes(tomorrow) ? 'Demain protégé' : 'Protéger demain'}</button>
-              </div>}
-            </div>
-            <button type="button" className={`buy-btn ${confirm === id ? 'is-confirm' : ''}`} disabled={!affordable} onClick={() => purchase(id, { kind: 'perk', id: perk.id })}>
-              {confirm === id ? 'Confirmer' : <Coin amount={perk.price} />}
-            </button>
-          </div>
-        })}
-      </div>
-    </section>
+    <div className="perk-grid">
+      {PERKS.map(perk => {
+        const ui = PERK_UI[perk.id]
+        const id = `perk-${perk.id}`
+        const count = perk.id === 'boost' ? 0 : state.inventory?.[perk.id] ?? 0
+        const active = perk.id === 'boost' && boostActive(state)
+        return <button key={perk.id} type="button" title={ui.hint} aria-label={`${perk.name} : ${ui.hint}. ${perk.price} or`}
+          className={`perk-card ${confirm === id ? 'is-confirm' : ''}`} disabled={balance < perk.price && confirm !== id} onClick={() => purchase(id, { kind: 'perk', id: perk.id })}>
+          {(count > 0 || active) && <span className="perk-badge">{active ? 'actif' : `×${count}`}</span>}
+          <ui.icon size={26} strokeWidth={1.8} />
+          <strong>{ui.short}</strong>
+          <span className="perk-price">{confirm === id ? 'Confirmer' : <Coin amount={perk.price} />}</span>
+        </button>
+      })}
+    </div>
+    {jokers > 0 && <div className="shop-actions">
+      <button type="button" className="chip" disabled={state.protectedDays?.includes(today)} onClick={() => protect(today)}>{state.protectedDays?.includes(today) ? 'Aujourd’hui protégé' : 'Joker : protéger aujourd’hui'}</button>
+      <button type="button" className="chip" disabled={state.protectedDays?.includes(tomorrow)} onClick={() => protect(tomorrow)}>{state.protectedDays?.includes(tomorrow) ? 'Demain protégé' : 'Demain'}</button>
+    </div>}
 
     <section className="settings-group">
-      <h3>Mes récompenses</h3>
-      <div className="shop-list">
-        {rewards.length === 0 && <p className="settings-hint shop-empty">Ajoute tes vraies récompenses : « Soirée ciné » 300 or, « Restaurant » 500 or, « Nouveau jeu » 1 500 or…</p>}
+      <div className="rewards-head"><h3>Mes récompenses</h3><button type="button" className="text-action" onClick={() => setAdding(v => !v)}><Plus size={16} /> Ajouter</button></div>
+      {adding && <form className="reward-form" onSubmit={addReward}>
+        <input autoFocus aria-label="Nom de la récompense" placeholder="Ex. : Soirée ciné" maxLength={80} value={title} onChange={e => setTitle(e.target.value)} />
+        <input aria-label="Prix en or" inputMode="numeric" placeholder="Prix" value={price} onChange={e => setPrice(e.target.value.replace(/\D/g, '').slice(0, 6))} />
+        <button type="submit" className="secondary-btn" disabled={!title.trim() || !Number(price)}>OK</button>
+      </form>}
+      {rewards.length === 0 && !adding && <p className="settings-hint">Aucune pour l’instant.</p>}
+      <div className="reward-list">
         {rewards.map(reward => {
           const id = `reward-${reward.id}`
-          return <div className="shop-item" key={reward.id}>
-            <div className="shop-item-copy"><strong>{reward.title}</strong></div>
-            <button type="button" className="small-icon" aria-label={`Supprimer ${reward.title}`} onClick={() => onChange(pick({ ...state, rewards: rewards.filter(r => r.id !== reward.id) }))}><Trash2 size={16} /></button>
-            <button type="button" className={`buy-btn ${confirm === id ? 'is-confirm' : ''}`} disabled={balance < reward.price} onClick={() => purchase(id, { kind: 'reward', reward })}>
-              {confirm === id ? 'Confirmer' : <Coin amount={reward.price} />}
-            </button>
+          const ratio = Math.min(1, balance / reward.price)
+          const ready = balance >= reward.price
+          return <div className="reward-row" key={reward.id}>
+            <div className="reward-copy">
+              <div className="reward-top"><strong>{reward.title}</strong><small>{Math.min(balance, reward.price).toLocaleString('fr-FR')} / {reward.price.toLocaleString('fr-FR')}</small></div>
+              <div className="bar bar-thin"><div style={{ width: `${ratio * 100}%` }} /></div>
+            </div>
+            {ready
+              ? <button type="button" className={`buy-btn ${confirm === id ? 'is-confirm' : ''}`} onClick={() => purchase(id, { kind: 'reward', reward })}>{confirm === id ? 'Confirmer' : 'Obtenir'}</button>
+              : <button type="button" className="small-icon" aria-label={`Supprimer ${reward.title}`} onClick={() => onChange(pick({ ...state, rewards: rewards.filter(r => r.id !== reward.id) }))}><Trash2 size={16} /></button>}
           </div>
         })}
       </div>
-      <form className="reward-form" onSubmit={addReward}>
-        <input aria-label="Nom de la récompense" placeholder="Ex. : Soirée ciné" maxLength={80} value={title} onChange={e => setTitle(e.target.value)} />
-        <input aria-label="Prix en or" inputMode="numeric" placeholder="Prix" value={price} onChange={e => setPrice(e.target.value.replace(/\D/g, '').slice(0, 6))} />
-        <button type="submit" className="secondary-btn" disabled={!title.trim() || !Number(price)}>Ajouter</button>
-      </form>
     </section>
-
-    {history.length > 0 && <section className="settings-group">
-      <h3>Historique</h3>
-      <ul className="shop-history">{history.map(e => <li key={e.key}><span>{e.label}</span><span className={e.amount > 0 ? 'is-gain' : ''}>{e.amount > 0 ? '+' : '−'}{Math.abs(e.amount).toLocaleString('fr-FR')} or</span></li>)}</ul>
-    </section>}
-    <p className="settings-hint">Tu gagnes de l’or à chaque validation qui rapporte de l’XP (Facile 1, Moyen 2, Difficile 4, Épique 8) et un coffre à chaque palier de série. Les pénalités ne retirent jamais d’or.</p>
   </div>
 }
