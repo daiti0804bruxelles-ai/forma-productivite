@@ -30,4 +30,15 @@ assert.deepEqual(keys(done, '21:30'), [])
 assert.deepEqual(keys({ ...data, notifications: { beforeEvent: false, evening: false, morning: false } }, '21:00'), [])
 // Heure locale selon le fuseau.
 assert.deepEqual(localNow(new Date('2026-11-08T23:30:00Z'), 'Asia/Kuala_Lumpur'), { day: '2026-11-09', time: '07:30' })
+// Objectifs : rappel hebdo du lundi (9h) et note de fin de mois des caps de vie.
+const withGoals = { ...done, goals: [
+  { id: 'g1', title: 'Poids', kind: 'measure', reminder: { every: 'week', weekday: 1 } },
+  { id: 'g2', title: 'Revenus', kind: 'count', reminder: { every: 'month', day: 9 } },
+  { id: 'g3', title: 'Lire', kind: 'count', reminder: { every: 'week', weekday: 3 } },
+  { id: 'g4', title: 'Discipline', kind: 'vision' },
+  { id: 'g5', title: 'Ancien', kind: 'count', completedOn: '2026-11-01', reminder: { every: 'week', weekday: 1 } },
+] }
+assert.deepEqual(dueReminders(withGoals, day, '09:05').filter(r => r.dedupeKey.startsWith('goal:')).map(r => r.dedupeKey), ['goal:g1:2026-11-09', 'goal:g2:2026-11-09'])
+assert.deepEqual(dueReminders(withGoals, '2026-11-30', '20:10').filter(r => r.dedupeKey.startsWith('vision:')).map(r => r.title), ['Ta note du mois : Discipline'])
+assert.deepEqual(dueReminders({ ...withGoals, goals: [{ ...withGoals.goals[3], ratings: { '2026-11': 7 } }] }, '2026-11-30', '20:10').filter(r => r.dedupeKey.startsWith('vision:')), [], 'déjà noté')
 console.log('Tests des rappels réussis : activité −15 min, soir 21h, matin, préférences, fuseau.')
