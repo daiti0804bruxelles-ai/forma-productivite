@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { ChevronRight, X } from 'lucide-react'
-import { SKILL_IDS } from './skillsCatalog'
 import { SKILL_GROUPS } from './skillsCatalog'
 import { domainProgress, skillProgress, rankFor, type XpLedger, type XpProgress } from './xpEngine'
-import type { SkillId } from './skillsCatalog'
 
 const SHORT_NAMES: Record<string, string> = { appearance: 'Physique', health: 'Santé', knowledge: 'Savoir', ambition: 'Ambition', discipline: 'Discipline', relations: 'Relations' }
 
@@ -125,26 +123,9 @@ function DomainSheet({ groupId, ledger, onClose }: { groupId: string; ledger?: X
   </div>
 }
 
-type Props = { ledger?: XpLedger; initial: string }
+type Props = { ledger?: XpLedger }
 
-/** Avatar minimaliste dessiné par Forma : silhouette aux couleurs du thème, ton initiale et ton titre de rang. */
-function Avatar({ initial, title, level }: { initial: string; title: string; level: number }) {
-  return <div className="hero-avatar" aria-label={`${title}, niveau moyen ${level}`}>
-    <svg viewBox="0 0 120 150" aria-hidden="true">
-      <circle className="avatar-halo" cx="60" cy="62" r="54" />
-      <path className="avatar-body" d="M18 150c0-30 19-50 42-50s42 20 42 50z" />
-      <circle className="avatar-head" cx="60" cy="54" r="27" />
-      <text className="avatar-initial" x="60" y="64" textAnchor="middle">{initial}</text>
-    </svg>
-    <strong>{title}</strong>
-    <small>Niv. moyen {level}</small>
-  </div>
-}
-
-export default function SkillsPage({ ledger, initial }: Props) {
-  // Titre global : rang du niveau moyen de tes 19 compétences (Novice avant le niveau 5).
-  const meanLevel = Math.floor(SKILL_IDS.reduce((sum, id) => sum + skillProgress(ledger, id as SkillId).level, 0) / SKILL_IDS.length)
-  const title = rankFor(meanLevel) ?? 'Novice'
+export default function SkillsPage({ ledger }: Props) {
   const [openId, setOpenId] = useState<string | null>(null)
   const domains: Domain[] = SKILL_GROUPS.map(g => ({ id: g.id, name: g.name, progress: domainProgress(ledger, g.id) }))
   // Lecture rapide : où tu es le plus fort, où il reste le plus à faire (affichée seulement si l'écart est net).
@@ -155,10 +136,7 @@ export default function SkillsPage({ ledger, initial }: Props) {
   return <section>
     <div className="page-intro"><div><h1>Compétences</h1></div></div>
     <div className="panel skills-hero">
-      <div className="hero-grid">
-        <Avatar initial={initial} title={title} level={meanLevel} />
-        <div className="hero-radar"><Radar domains={domains} onOpen={setOpenId} /></div>
-      </div>
+      <Radar domains={domains} onOpen={setOpenId} />
       {showInsight && <p className="skills-insight"><span>Point fort <strong>{label(best)}</strong></span><span>À travailler <strong>{label(worst)}</strong></span></p>}
     </div>
     <div className="domain-list">{domains.map(d => {

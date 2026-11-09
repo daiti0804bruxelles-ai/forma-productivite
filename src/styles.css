@@ -528,7 +528,7 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .radar-dot { fill: var(--accent); }
 .radar-shape { transform-origin: 160px 138px; animation: radar-in .6s cubic-bezier(.2, .8, .2, 1); }
 .radar-label { cursor: pointer; outline: none; }
-.radar-label text { fill: var(--text-2); font-size: 15px; font-weight: 600; }
+.radar-label text { fill: var(--text-2); font-size: 13px; font-weight: 600; }
 .radar-label:hover text, .radar-label:focus-visible text { fill: var(--text); }
 @keyframes radar-in { from { transform: scale(.2); opacity: 0; } to { transform: none; opacity: 1; } }
 .domain-list { display: grid; margin-bottom: 8px; }
@@ -632,13 +632,3 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .buy-btn.is-confirm { background: var(--fill); color: var(--on-fill); font-weight: 700; }
 .reward-form { display: grid; grid-template-columns: minmax(0, 1fr) 80px auto; gap: 8px; }
 .reward-form input { min-height: 44px; padding: 0 12px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--surface); color: var(--text); font-size: .95rem; }
-/* Compétences : avatar à gauche, hexagone à droite */
-.hero-grid { display: grid; grid-template-columns: minmax(0, 34fr) minmax(0, 66fr); align-items: center; gap: 4px; width: 100%; }
-.hero-avatar { display: grid; justify-items: center; gap: 2px; text-align: center; }
-.hero-avatar svg { width: 100%; max-width: 120px; }
-.avatar-halo { fill: var(--accent-soft); }
-.avatar-body, .avatar-head { fill: var(--fill-border); }
-.avatar-initial { fill: var(--on-fill); font-size: 30px; font-weight: 700; }
-.hero-avatar strong { margin-top: 6px; font-size: .95rem; font-weight: 700; color: var(--accent-ink); }
-.hero-avatar small { color: var(--text-2); font-size: .75rem; }
-.hero-radar .radar { width: 100%; }

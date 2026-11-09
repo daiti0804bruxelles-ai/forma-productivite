@@ -526,7 +526,7 @@ useEffect(() => {
     </div>
    </header>
    <main className="content">
-    {page==='skills'&&<SkillsPage ledger={data.xpLedger} initial={(session?.user?.email?.[0]||'F').toUpperCase()}/>}
+    {page==='skills'&&<SkillsPage ledger={data.xpLedger}/>}
 
     {page==='dashboard'&&<div className="today">
      <section className="today-head">
