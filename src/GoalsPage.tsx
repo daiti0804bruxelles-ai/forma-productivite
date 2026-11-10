@@ -65,12 +65,12 @@ function NumberPad({ goal, today, onSubmit, onDetails, onClose }: { goal: Goal; 
     <div className="sheet goal-pad" role="dialog" aria-modal="true" aria-label={`Mettre à jour ${goal.title}`} onMouseDown={e => e.stopPropagation()}>
       <div className="sheet-grabber" aria-hidden="true" />
       <div className="goal-pad-head">
-        <div><strong>{goal.title}</strong><small>{goal.mode === 'add' ? `Ajouter${goal.monthly ? ` · ${monthName(today)}` : ''}` : 'Nouvelle mesure'}</small></div>
+        <strong>{goal.title}</strong>
         <button type="button" className="text-action" onClick={onDetails}>Détails</button>
       </div>
       <div className="goal-pad-display" aria-live="polite">
         <span className={entry ? '' : 'is-empty'}>{goal.mode === 'add' ? '+ ' : ''}{entry ? pretty(entry) : '0'}{u(goal)}</span>
-        <small>{goal.mode === 'add' ? `${formatNumber(after)} / ${formatNumber(goal.target)}${u(goal)}` : `Avant : ${formatNumber(current)}${u(goal)} · cible ${formatNumber(goal.target)}${u(goal)}`}</small>
+        <small>{goal.mode === 'add' ? `${formatNumber(after)} / ${formatNumber(goal.target)}${u(goal)}` : `${formatNumber(current)} → ${formatNumber(goal.target)}${u(goal)}`}</small>
       </div>
       <div className="goal-pad-keys">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', '⌫'].map(k => <button key={k} type="button" aria-label={k === '⌫' ? 'Effacer' : k} onClick={() => press(k)}>{k === '⌫' ? <Delete size={22} /> : k}</button>)}
@@ -200,10 +200,8 @@ function Composer({ today, onCreate, onClose }: { today: string; onCreate: (goal
     <form className="sheet goal-composer" role="dialog" aria-modal="true" aria-label="Nouvel objectif" onSubmit={submit} onMouseDown={e => e.stopPropagation()}>
       <div className="sheet-grabber" aria-hidden="true" />
       <div className="sheet-head skill-sheet-head"><h2>Nouvel objectif</h2><button type="button" className="icon-button" aria-label="Fermer" onClick={onClose}><X size={20} /></button></div>
-      <input className="goal-phrase" autoFocus maxLength={140} value={text} onChange={e => setText(e.target.value)} placeholder="Ex. : 10 000 $ de CA par mois" aria-label="Ton objectif en une phrase" />
-      {!text.trim() && <p className="settings-hint">Ex. : « Perdre 12 kg d’ici février », « 10 000 $ de CA par mois », « CA 30 k€ d’ici mars ».</p>}
-      {text.trim() && !mode && <p className="settings-hint">Ajoute un chiffre à ta phrase, par exemple « 10 000 $ par mois » ou « Perdre 5 kg d’ici mars ».</p>}
-      {understood && <p className="quick-understood" role="status"><span>Compris : <strong>{understood}</strong></span></p>}
+      <input className="goal-phrase" autoFocus maxLength={140} value={text} onChange={e => setText(e.target.value)} placeholder="10 000 $ de CA par mois" aria-label="Ton objectif en une phrase" />
+      {understood && <p className="goal-understood" role="status">{understood}</p>}
       {mode === 'value' && <div className="field-row">
         <label className="field"><span>Aujourd’hui{guess.unit ? ` (${guess.unit})` : ''}</span><input inputMode="decimal" autoFocus value={current} onChange={e => setCurrent(e.target.value)} placeholder="92" /></label>
         <label className="field"><span>Cible{guess.unit ? ` (${guess.unit})` : ''}</span><input inputMode="decimal" value={computedTarget} onChange={e => { setTargetTouched(true); setTarget(e.target.value) }} placeholder="80" /></label>

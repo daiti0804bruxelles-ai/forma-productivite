@@ -657,8 +657,7 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .goal-phrase { min-height: 54px; padding: 0 16px; border-radius: 14px; border: 1.5px solid var(--fill-border); background: var(--surface); color: var(--text); font-size: 1.05rem; }
 /* Pavé numérique */
 .goal-pad { gap: 12px; }
-.goal-pad-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-.goal-pad-head > div { display: grid; gap: 2px; }
+.goal-pad-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .goal-pad-head strong { font-size: 1.05rem; }
 .goal-pad-head small { color: var(--text-2); font-size: .82rem; }
 .goal-pad-display { display: grid; justify-items: center; gap: 4px; padding: 10px 0 6px; }
@@ -700,3 +699,6 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .focus-goal-top span { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .focus-goal-top small { color: var(--text-2); font-weight: 500; font-size: .78rem; }
 .focus-goal .goal-bar { height: 6px; }
+.goal-understood { margin-top: -6px; padding: 0 4px; color: var(--text-2); font-size: .85rem; }
+.goal-phrase { border-color: var(--line); }
+.goal-phrase:focus { border-color: var(--fill-border); outline: none; }
