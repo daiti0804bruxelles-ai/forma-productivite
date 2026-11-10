@@ -1,11 +1,11 @@
 /**
- * Création d'objectif en une phrase : « Perdre 12 kg d'ici février », « Lire 12 livres en 2027 »,
- * « 10 000 $ ce mois », « Passer de 92 à 80 kg », « Créer la société à Dubaï », « Être plus discipliné ».
- * Renvoie le type deviné, la cible et l'échéance ; le titre garde la phrase sans l'échéance.
+ * Création d'objectif chiffré en une phrase : « Perdre 12 kg d'ici février », « 10 000 $ de CA par mois »,
+ * « Lire 12 livres en 2027 », « Passer de 92 à 80 kg ».
+ * mode 'value' = une mesure (poids…), 'add' = un total qu'on remplit (CA, livres…), null = pas de chiffre trouvé.
  */
-import type { GoalKind } from './goalModel'
+import type { GoalMode } from './goalModel'
 
-export type GoalGuess = { title: string; kind: GoalKind; target?: number; unit?: string; start?: number; delta?: number; deadline?: string; deadlineLabel?: string }
+export type GoalGuess = { title: string; mode: GoalMode | null; target?: number; unit?: string; start?: number; delta?: number; deadline?: string; deadlineLabel?: string; monthly?: boolean }
 
 const MONTHS = ['janvier', 'fevrier', 'mars', 'avril', 'mai', 'juin', 'juillet', 'aout', 'septembre', 'octobre', 'novembre', 'decembre']
 const plain = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’‘]/g, "'").toLowerCase()
@@ -27,9 +27,12 @@ export function parseGoal(text: string, today: string): GoalGuess {
   let deadline: string | undefined
   const take = (re: RegExp) => { const m = plain(rest).match(re); if (!m || m.index === undefined) return null; rest = rest.slice(0, m.index) + ' ' + rest.slice(m.index + m[0].length); return m }
 
+  // Objectif mensuel : « par mois », « /mois », « chaque mois »…
+  const monthly = Boolean(take(/\s(?:par mois|\/ ?mois|chaque mois|tous les mois|mensuel(?:le)?)(?=\s)/))
   // Échéance.
   let m
-  if ((m = take(/\s(?:d'?ici|avant|pour)\s+(?:le\s+)?(\d{1,2})(?:er)?\s+(janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre)(?:\s+(\d{4}))?(?=\s)/))) {
+  if (monthly) { /* pas d'échéance : il recommence chaque mois */ }
+  else if ((m = take(/\s(?:d'?ici|avant|pour)\s+(?:le\s+)?(\d{1,2})(?:er)?\s+(janvier|fevrier|mars|avril|mai|juin|juillet|aout|septembre|octobre|novembre|decembre)(?:\s+(\d{4}))?(?=\s)/))) {
     const month = MONTHS.indexOf(m[2]); let year = m[3] ? Number(m[3]) : t.getFullYear()
     let d = new Date(year, month, Number(m[1])); if (!m[3] && keyOf(d) < today) d = new Date(++year, month, Number(m[1]))
     deadline = keyOf(d)
@@ -53,17 +56,17 @@ export function parseGoal(text: string, today: string): GoalGuess {
   }
   const title = rest.replace(/\s+/g, ' ').trim().replace(/[,.;:]$/, '')
   const p = ` ${plain(title)} `
-  const guess: GoalGuess = { title: title.charAt(0).toUpperCase() + title.slice(1), kind: 'project', deadline, deadlineLabel: deadline ? label(deadline) : undefined }
+  const guess: GoalGuess = { title: title.charAt(0).toUpperCase() + title.slice(1), mode: null, deadline, deadlineLabel: deadline ? label(deadline) : undefined, monthly: monthly || undefined }
 
   // Mesure : « passer de 92 à 80 kg », « perdre 12 kg », « descendre à 80 kg ».
   if ((m = p.match(new RegExp(String.raw`\sde\s+${NUMBER}\s*([a-z%$€]+)?\s+a\s+${NUMBER}\s*([a-z%$€]+)?`)))) {
-    return { ...guess, kind: 'measure', start: num(m[1]), target: num(m[3]), unit: m[4] || m[2] }
+    return { ...guess, mode: 'value', start: num(m[1]), target: num(m[3]), unit: m[4] || m[2] }
   }
   if ((m = p.match(new RegExp(String.raw`\s(perdre|maigrir de|prendre|gagner)\s+${NUMBER}\s*(kg|kilos?|g|cm|%)(?=\s)`)))) {
-    const n = num(m[2]); return { ...guess, kind: 'measure', delta: /perdre|maigrir/.test(m[1]) ? -n : n, unit: m[3].startsWith('kilo') ? 'kg' : m[3] }
+    const n = num(m[2]); return { ...guess, mode: 'value', delta: /perdre|maigrir/.test(m[1]) ? -n : n, unit: m[3].startsWith('kilo') ? 'kg' : m[3] }
   }
   if ((m = p.match(new RegExp(String.raw`\s(?:descendre|atteindre|arriver|peser)\s+(?:a\s+)?${NUMBER}\s*(kg|kilos?|cm|%)(?=\s)`)))) {
-    return { ...guess, kind: 'measure', target: num(m[1]), unit: m[2].startsWith('kilo') ? 'kg' : m[2] }
+    return { ...guess, mode: 'value', target: num(m[1]), unit: m[2].startsWith('kilo') ? 'kg' : m[2] }
   }
   // Chiffre : « lire 12 livres », « 10 000 $ », « 100 séances ».
   if ((m = p.match(new RegExp(String.raw`\s${NUMBER}\s*([$€£]|[a-zà-ÿ]+)?`)))) {
@@ -72,9 +75,7 @@ export function parseGoal(text: string, today: string): GoalGuess {
     const at = (m.index ?? 0) + m[0].lastIndexOf(raw)
     const original = raw ? ` ${title} `.slice(at, at + raw.length) : ''
     const unit = MEASURE_UNITS.includes(raw) ? raw : (raw === 'de' || raw === 'a' ? undefined : (original || undefined))
-    return { ...guess, kind: 'count', target: num(m[1]), unit }
+    return { ...guess, mode: 'add', target: num(m[1]), unit }
   }
-  // Sans chiffre : cap de vie ou projet.
-  if (/^\s(etre|devenir|rester|me sentir|avoir plus|vivre plus|mieux)\s/.test(p)) return { ...guess, kind: 'vision' }
   return guess
 }

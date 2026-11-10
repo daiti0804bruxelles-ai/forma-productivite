@@ -11,8 +11,8 @@ import { isCharacterAppearance, type CharacterAppearance } from './CharacterPage
 import { isSkillId, type SkillId } from './skillsCatalog'
 import SharedGoalsPage from './SharedGoalsPage'
 import type { Goal } from './GoalsPage'
-import { isValidGoal, migrateGoals, withCompletion, GOAL_GOLD, GOAL_XP, goalProgress, goalPace, goalValueLabel, isComplete, type GoalStep } from './goalModel'
-import { Ring } from './GoalsPage'
+import { isValidGoal, migrateGoals, withCompletion, GOAL_GOLD, GOAL_XP, isComplete, monthlyWins } from './goalModel'
+import { FocusGoal } from './GoalsPage'
 import { awardXp, isValidXpLedger, isDifficulty, xpForDifficulty, difficultyLabel, DIFFICULTIES, MAX_SKILLS_PER_ITEM, skillProgress, rankFor, type Difficulty, type XpLedger, type XpSource } from './xpEngine'
 import { suggestSkills, skillName } from './skillSuggest'
 import { GOLD_BY_DIFFICULTY, addGold, chestFor, goldBalance, isGoldLedger, isInventory, isReward, streakLength, xpMultiplier, boostActive, type GameState } from './game'
@@ -191,8 +191,14 @@ function applyGoals(prev:AppData,nextGoals:Goal[]):AppData{
  let xpLedger=prev.xpLedger, goldLedger=prev.goldLedger
  for(const g of goals){
   const before=(prev.goals||[]).find(x=>x.id===g.id)
-  if(!g.completedOn||before?.completedOn||!isComplete(g))continue
   const difficulty=g.difficulty??'moderate'
+  // Objectif mensuel : une récompense par mois atteint.
+  for(const month of monthlyWins(g)){
+   if(before&&monthlyWins(before).includes(month))continue
+   if(g.skillIds?.length)xpLedger=awardXp(xpLedger,`goal:${g.id}:${month}`,'goal',g.skillIds,GOAL_XP[difficulty]*xpMultiplier(prev))
+   goldLedger=addGold(goldLedger,`gold:goal:${g.id}:${month}`,GOAL_GOLD[difficulty],`Objectif du mois : ${g.title}`)
+  }
+  if(!g.completedOn||before?.completedOn||!isComplete(g,today))continue
   if(g.skillIds?.length)xpLedger=awardXp(xpLedger,`goal:${g.id}`,'goal',g.skillIds,GOAL_XP[difficulty]*xpMultiplier(prev))
   goldLedger=addGold(goldLedger,`gold:goal:${g.id}`,GOAL_GOLD[difficulty],`Objectif : ${g.title}`)
  }
@@ -338,9 +344,7 @@ useEffect(() => {
     activityDays:task.done?prev.activityDays:Array.from(new Set([...(prev.activityDays||[]),todayKey()])),
     ...(!task.done?earn(prev,key,'task',task.skillIds,task.difficulty,task.title):{})
   }
-  // Étape de projet planifiée : cocher la tâche fait avancer l'objectif.
-  const link=task.goalStep
-  return link?applyGoals(next,(next.goals||[]).map(g=>g.id===link.goalId?{...g,steps:(g.steps||[]).map(s=>s.id===link.stepId?{...s,done:!task.done}:s)}:g)):next
+  return next
  })
  const openAdd=(type:'task'|'habit'|'event',date=todayKey())=>{setEditing(null);setFormTitle('');setFormSkillIds([]);setFormCategory('Travail');setFormPeriod('Matin');setFormRecurring(false);setFormDate(date);setFormTime('09:00');setFormEndTime('10:00');setFormRepeatDays([]);setFormDifficulty('moyen');setFormDays([]);setFormSkillsTouched(false);setFormEventXp(false);setModal(type)}
  const openEdit=(type:'task'|'habit'|'event',record:Task|Habit|Event)=>{setEditing(record.id);setFormTitle(record.title);setFormSkillsTouched(true);setFormDifficulty('difficulty' in record&&record.difficulty?record.difficulty:'moyen');setFormDays('days' in record&&record.days?record.days:[]);setFormSkillIds('skillIds' in record ? (record.skillIds || []) : []);setFormEventXp(Boolean('skillIds' in record&&record.skillIds?.length));setFormCategory(record.category);if('period'in record)setFormPeriod(record.period);if('recurring'in record)setFormRecurring(Boolean(record.recurring));if('date'in record)setFormDate(record.date);if('time'in record){setFormRepeatDays(record.repeatDays||[]);setFormTime(record.time);const [hours,minutes]=record.time.split(':').map(Number);setFormEndTime(record.endTime||`${String(Math.min(hours+1,23)).padStart(2,'0')}:${String(hours===23?Math.min(minutes+1,59):minutes).padStart(2,'0')}`)}setModal(type)}
@@ -348,7 +352,7 @@ useEffect(() => {
  const eventXpFields=(previous?:Event)=>formEventXp&&formSkillIds.length?{skillIds:formSkillIds,difficulty:formDifficulty,createdOn:previous?.skillIds?.length&&previous.createdOn?previous.createdOn:todayKey()}:{skillIds:undefined,difficulty:undefined,createdOn:undefined}
  const submit=(e:FormEvent)=>{e.preventDefault();if(!formTitle.trim()||!modal)return;if(modal==='event'&&formEndTime<=formTime)return;const title=formTitle.trim();if(modal==='habit'){setData(prev=>({...prev,habits:editing?prev.habits.map(h=>h.id===editing?{...h,title,period:formPeriod,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty,days:formDays.length?formDays:undefined}:h):[...prev.habits,{id:id(),title,period:formPeriod,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty,days:formDays.length?formDays:undefined,createdOn:todayKey()}]}))}if(modal==='task'){setData(prev=>({...prev,tasks:editing?prev.tasks.map(t=>t.id===editing?{...t,title,date:formDate,dueDate:formDate===t.date?t.dueDate:undefined,recurring:formRecurring,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty}:t):[...prev.tasks,{id:id(),title,date:formDate,recurring:formRecurring,category:formCategory,done:false,skillIds:formSkillIds,difficulty:formDifficulty,createdOn:todayKey()}]}))}if(modal==='event'){setData(prev=>({...prev,events:editing?prev.events.map(ev=>ev.id===editing?{...ev,title,date:formDate,time:formTime,endTime:formEndTime,repeatDays:formRepeatDays.length?formRepeatDays:undefined,category:formCategory,...eventXpFields(ev)}:ev):[...prev.events,{id:id(),title,date:formDate,time:formTime,endTime:formEndTime,category:formCategory,repeatDays:formRepeatDays.length?formRepeatDays:undefined,...eventXpFields()}]}))}setModal(null)}
  const deleteItem=(type:'task'|'habit'|'event',itemId:string)=>setPendingDelete({type,id:itemId})
- const confirmDelete=()=>{if(!pendingDelete)return;const {type,id:itemId}=pendingDelete;setData(prev=>type==='task'?{...prev,tasks:prev.tasks.filter(t=>t.id!==itemId),goals:(prev.goals||[]).map(g=>g.steps?.some(st=>st.taskId===itemId)?{...g,steps:g.steps.map(st=>st.taskId===itemId?{...st,taskId:undefined}:st)}:g)}:type==='event'?{...prev,events:prev.events.filter(e=>e.id!==itemId)}:{...prev,habits:prev.habits.filter(h=>h.id!==itemId)});setPendingDelete(null);setModal(null)}
+ const confirmDelete=()=>{if(!pendingDelete)return;const {type,id:itemId}=pendingDelete;setData(prev=>type==='task'?{...prev,tasks:prev.tasks.filter(t=>t.id!==itemId)}:type==='event'?{...prev,events:prev.events.filter(e=>e.id!==itemId)}:{...prev,habits:prev.habits.filter(h=>h.id!==itemId)});setPendingDelete(null);setModal(null)}
  const [autoBackups,setAutoBackups]=useState<BackupInfo[]|null>(null)
  const [timeZoneOpen,setTimeZoneOpen]=useState(false)
  const [statsHabitId,setStatsHabitId]=useState<string|null>(null)
@@ -457,12 +461,6 @@ useEffect(() => {
   if(!done&&ev.skillIds?.length&&!earned(`event:${ev.id}:${todayKey()}`))setXpFlash({id:ev.id,amount:xpForDifficulty(ev.difficulty)*xpMultiplier(data)*ev.skillIds.length,gold:GOLD_BY_DIFFICULTY[ev.difficulty??'moyen']})
  }
  const tomorrowKey=dateKey(addDays(makeDate(todayKey()),1))
- // Étape de projet planifiée : devient une tâche du jour (avec les compétences de l'objectif).
- const planStep=(goal:Goal,step:GoalStep)=>setData(prev=>{
-  const taskId=id()
-  const task:Task={id:taskId,title:step.title,category:'Travail',date:todayKey(),done:false,recurring:false,createdOn:todayKey(),skillIds:goal.skillIds,difficulty:'moyen',goalStep:{goalId:goal.id,stepId:step.id}}
-  return {...prev,tasks:[...prev.tasks,task],goals:(prev.goals||[]).map(g=>g.id===goal.id?{...g,steps:(g.steps||[]).map(s=>s.id===step.id?{...s,taskId}:s)}:g)}
- })
  useEffect(()=>{if(!goalBanner)return;const timer=window.setTimeout(()=>setGoalBanner(null),4200);return()=>window.clearTimeout(timer)},[goalBanner])
  // Reporter à demain : la tâche n'est plus due aujourd'hui (pas de pénalité de retard pour aujourd'hui).
  const postponeTask=(taskId:string)=>{setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId&&!t.recurring?{...t,date:tomorrowKey,dueDate:undefined}:t)}));keepBriefly(taskId)}
@@ -567,7 +565,7 @@ useEffect(() => {
       <div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>{(boostActive(data)||data.protectedDays?.includes(todayKey()))&&<div className="game-status">{boostActive(data)&&<span>Boost XP ×2 jusqu’à {new Date(data.boostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{data.protectedDays?.includes(todayKey())&&<span>Journée protégée par un joker</span>}</div>}
       <div className="bar" role="progressbar" aria-label="Progression du jour" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dayProgress}><div style={{width:`${dayProgress}%`}}/></div>
      </div>}
-     {focusGoal&&<button type="button" className="focus-goal" onClick={()=>go('goals')}><Ring value={goalProgress(focusGoal)??0} size={26}/><span><strong>{focusGoal.title}</strong><small>{[goalValueLabel(focusGoal),goalPace(focusGoal,todayKey()).label].filter(Boolean).join(' · ')}</small></span><ChevronRight size={16}/></button>}
+     {focusGoal&&<FocusGoal goal={focusGoal} today={todayKey()} onOpen={()=>go('goals')}/>}
      <section className="list-section today-events">
       <div className="section-head"><h2>Programme</h2><button type="button" className="text-action" onClick={()=>go('calendar')}>Calendrier <ArrowRight size={15}/></button></div>
       <div className="list-card">{visibleEvents.length?visibleEvents.map(ev=>{const xp=Boolean(ev.skillIds?.length);const done=completedEventsToday.includes(ev.id);return <div className={`event-row ${!xp&&eventPast(ev)?'is-past':''} ${leaving.includes(ev.id)&&!showDone?'is-leaving':''}`} key={ev.id}>{xp&&<RoundCheck done={done} label={`${done?'Annuler':'Valider'} ${ev.title}`} onToggle={()=>checkEvent(ev)}/>}<span className="event-time">{ev.time}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span className={done?'is-done':''}>{ev.title}</span><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}{xp?` · +${xpForDifficulty(ev.difficulty)*(ev.skillIds?.length||0)} XP`:''}</small></div>{xpFlash?.id===ev.id&&<span className="xp-flash" aria-hidden="true">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}</div>}):<Empty message={todayEvents.length?'Plus rien de prévu aujourd’hui.':'Rien de prévu aujourd’hui.'}/>}</div>
@@ -653,9 +651,8 @@ useEffect(() => {
       <button type="button" role="tab" aria-selected={goalsTab==='shared'} onClick={()=>setGoalsTab('shared')}><Users size={16}/> Partagés</button>
      </div>
      {goalsTab==='personal'?<GoalsPage goals={data.goals||[]} today={todayKey()} focusGoalId={data.focusGoalId}
-      onChange={goals=>{const before=new Set((data.goals||[]).filter(g=>g.completedOn).map(g=>g.id));const won=goals.map(g=>withCompletion(g,todayKey())).find(g=>g.completedOn&&!before.has(g.id));setData(prev=>applyGoals(prev,goals));if(won)setGoalBanner(won.title)}}
-      onFocus={id=>setData(prev=>({...prev,focusGoalId:id}))}
-      onPlanStep={(goal,step)=>planStep(goal,step)}/>:<SharedGoalsPage userId={session.user.id}/>}
+      onChange={goals=>{const today=todayKey();const prevGoals=data.goals||[];const won=goals.map(g=>withCompletion(g,today)).find(g=>{const b=prevGoals.find(x=>x.id===g.id);return (g.completedOn&&!b?.completedOn)||monthlyWins(g).length>(b?monthlyWins(b).length:0)});setData(prev=>applyGoals(prev,goals));if(won)setGoalBanner(won.title)}}
+      onFocus={id=>setData(prev=>({...prev,focusGoalId:id}))}/>:<SharedGoalsPage userId={session.user.id}/>}
     </>}
 
     {page==='calendar'&&<>
