@@ -8,10 +8,11 @@ type Item = { id: string; title: string; skillIds?: string[] }
 type Habit = Item & { days?: number[]; createdOn?: string }
 type Task = Item & { date: string; done: boolean; recurring?: boolean }
 type Event = Item & { date: string; time: string; repeatDays?: number[] }
+type GoalLike = { id: string; title: string; kind: string; completedOn?: string; ratings?: Record<string, number>; reminder?: { every: 'week'; weekday: number } | { every: 'month'; day: number } }
 export type FormaData = {
   habits?: Habit[]; tasks?: Task[]; events?: Event[]
   completedHabits?: Record<string, string[]>; completedEvents?: Record<string, string[]>
-  timeZone?: string; notifications?: NotificationPrefs
+  timeZone?: string; notifications?: NotificationPrefs; goals?: GoalLike[]
 }
 export type Reminder = { dedupeKey: string; title: string; body: string; url: string; tag: string }
 
@@ -80,6 +81,19 @@ export function dueReminders(data: FormaData, day: string, time: string): Remind
       title: 'Ta journée',
       body: [parts.join(' · '), next ? `${next.title} à ${next.time}` : ''].filter(Boolean).join(' — '),
     })
+  }
+  // 4. Objectifs : rappel de mise à jour choisi par objectif (9h), et note de fin de mois des caps de vie (20h).
+  const goals = (data.goals ?? []).filter(g => !g.completedOn)
+  if (now >= 9 * 60 && now < 12 * 60) for (const g of goals) {
+    const r = g.reminder
+    const due = r && (r.every === 'week' ? r.weekday === weekday(day) : Number(day.slice(8)) === r.day)
+    if (due) out.push({ dedupeKey: `goal:${g.id}:${day}`, tag: `goal-${g.id}`, url: '/', title: `Mise à jour : ${g.title}`, body: 'Note où tu en es dans Forma.' })
+  }
+  const [y, m, d] = day.split('-').map(Number)
+  const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate() === d
+  if (lastDay && now >= 20 * 60) for (const g of goals) {
+    if (g.kind !== 'vision' || g.ratings?.[day.slice(0, 7)]) continue
+    out.push({ dedupeKey: `vision:${g.id}:${day.slice(0, 7)}`, tag: `vision-${g.id}`, url: '/', title: `Ta note du mois : ${g.title}`, body: 'De 1 à 10, comment s’est passé ton mois ?' })
   }
   return out
 }

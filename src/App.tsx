@@ -11,8 +11,9 @@ import { isCharacterAppearance, type CharacterAppearance } from './CharacterPage
 import { isSkillId, type SkillId } from './skillsCatalog'
 import SharedGoalsPage from './SharedGoalsPage'
 import type { Goal } from './GoalsPage'
-import { isValidGoal, progressPercent } from './goalModel'
-import { awardXp, awardCompletedGoals, isValidXpLedger, isDifficulty, xpForDifficulty, difficultyLabel, DIFFICULTIES, MAX_SKILLS_PER_ITEM, skillProgress, rankFor, type Difficulty, type XpLedger, type XpSource } from './xpEngine'
+import { isValidGoal, migrateGoals, withCompletion, GOAL_GOLD, GOAL_XP, isComplete, monthlyWins } from './goalModel'
+import { FocusGoal } from './GoalsPage'
+import { awardXp, isValidXpLedger, isDifficulty, xpForDifficulty, difficultyLabel, DIFFICULTIES, MAX_SKILLS_PER_ITEM, skillProgress, rankFor, type Difficulty, type XpLedger, type XpSource } from './xpEngine'
 import { suggestSkills, skillName } from './skillSuggest'
 import { GOLD_BY_DIFFICULTY, addGold, chestFor, goldBalance, isGoldLedger, isInventory, isReward, streakLength, xpMultiplier, boostActive, type GameState } from './game'
 import Shop, { Coin } from './Shop'
@@ -38,9 +39,9 @@ type Page = 'dashboard' | 'habits' | 'tasks' | 'calendar' | 'goals' | 'skills'
 type Period = 'Matin' | 'Après-midi' | 'Soir'
 type Habit = { id:string; title:string; period:Period; category:string; skillIds?:SkillId[]; createdOn?:string; difficulty?:Difficulty; days?:number[] }
 type Subtask = { id:string; title:string; done:boolean }
-type Task = { id:string; subtasks?:Subtask[]; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[]; dueDate?:string; createdOn?:string; difficulty?:Difficulty }
+type Task = { id:string; goalStep?:{goalId:string;stepId:string}; subtasks?:Subtask[]; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[]; dueDate?:string; createdOn?:string; difficulty?:Difficulty }
 type Event = { id:string; title:string; date:string; time:string; endTime?:string; category:string; repeatDays?:number[]; skillIds?:SkillId[]; difficulty?:Difficulty; createdOn?:string }
-type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string; notifications?:NotificationPrefs } & GameState
+type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string; notifications?:NotificationPrefs; focusGoalId?:string } & GameState
 const todayKey = () => currentDayKey()
 const weekdayOptions=[{day:1,label:'Lun'},{day:2,label:'Mar'},{day:3,label:'Mer'},{day:4,label:'Jeu'},{day:5,label:'Ven'},{day:6,label:'Sam'},{day:0,label:'Dim'}]
 
@@ -81,6 +82,7 @@ function isAppData(value:unknown):value is AppData{
  if(d.xpVersion!==undefined&&typeof d.xpVersion!=='number')return false
  if(d.timeZone!==undefined&&!isValidTimeZone(d.timeZone))return false
  if(d.notifications!==undefined&&!isNotificationPrefs(d.notifications))return false
+ if(d.focusGoalId!==undefined&&!validText(d.focusGoalId))return false
  if(d.goldLedger!==undefined&&!isGoldLedger(d.goldLedger))return false
  if(d.rewards!==undefined&&(!Array.isArray(d.rewards)||d.rewards.length>200||!d.rewards.every(isReward)))return false
  if(d.inventory!==undefined&&!isInventory(d.inventory))return false
@@ -180,6 +182,28 @@ function migrateXp(value:AppData):AppData{
   habits:value.habits.map(h=>fill(h,'habit')),tasks:value.tasks.map(t=>fill(t,'task'))}
 }
 const ALL_SKILLS=SKILL_GROUPS.flatMap(group=>group.skills.map(skill=>({id:skill.id as SkillId,name:skill.name})))
+/** Objectifs : conversion de l'ancien format au chargement. */
+function migrateGoalData(value:AppData):AppData{const goals=migrateGoals(value.goals as unknown[]|undefined,todayKey());return goals===value.goals?value:{...value,goals}}
+/** Applique une nouvelle liste d'objectifs : date d'atteinte + XP (si compétences) + or, une seule fois par objectif. */
+function applyGoals(prev:AppData,nextGoals:Goal[]):AppData{
+ const today=todayKey()
+ const goals=nextGoals.map(g=>withCompletion(g,today))
+ let xpLedger=prev.xpLedger, goldLedger=prev.goldLedger
+ for(const g of goals){
+  const before=(prev.goals||[]).find(x=>x.id===g.id)
+  const difficulty=g.difficulty??'moderate'
+  // Objectif mensuel : une récompense par mois atteint.
+  for(const month of monthlyWins(g)){
+   if(before&&monthlyWins(before).includes(month))continue
+   if(g.skillIds?.length)xpLedger=awardXp(xpLedger,`goal:${g.id}:${month}`,'goal',g.skillIds,GOAL_XP[difficulty]*xpMultiplier(prev))
+   goldLedger=addGold(goldLedger,`gold:goal:${g.id}:${month}`,GOAL_GOLD[difficulty],`Objectif du mois : ${g.title}`)
+  }
+  if(!g.completedOn||before?.completedOn||!isComplete(g,today))continue
+  if(g.skillIds?.length)xpLedger=awardXp(xpLedger,`goal:${g.id}`,'goal',g.skillIds,GOAL_XP[difficulty]*xpMultiplier(prev))
+  goldLedger=addGold(goldLedger,`gold:goal:${g.id}`,GOAL_GOLD[difficulty],`Objectif : ${g.title}`)
+ }
+ return {...prev,goals,xpLedger,goldLedger}
+}
 /** Récompense d'une validation : XP (doublée pendant un boost) + or selon la difficulté. Une seule fois par clé. */
 function earn(prev:AppData,key:string,source:XpSource,skillIds:SkillId[]|undefined,difficulty:Difficulty|undefined,label:string):Partial<AppData>{
  if(!skillIds?.length||prev.xpLedger?.events.some(e=>e.key===key))return {}
@@ -209,7 +233,8 @@ const [data, setData] = useState<AppData>(demoData)
 setReferenceTimeZone(data.timeZone)
  const [shopOpen,setShopOpen]=useState(false)
  const [chestBanner,setChestBanner]=useState<string|null>(null)
-const sync = useCloudSync<AppData>({ userId: session?.user?.id, data, setData, prepare: value => rollOverTasks(migrateXp(value)), fallback: demoData })
+ const [goalBanner,setGoalBanner]=useState<string|null>(null)
+const sync = useCloudSync<AppData>({ userId: session?.user?.id, data, setData, prepare: value => rollOverTasks(migrateXp(migrateGoalData(value))), fallback: demoData })
 const dataLoading = sync.loading
 const dataError = sync.loadError
 useEffect(()=>{
@@ -284,6 +309,7 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   },[activityStreak,activeToday,dataLoading])
   useEffect(()=>{if(!chestBanner)return;const timer=window.setTimeout(()=>setChestBanner(null),3600);return()=>window.clearTimeout(timer)},[chestBanner])
+ const focusGoal=(data.goals||[]).find(g=>g.id===data.focusGoalId&&!g.completedOn)
  const todayEvents=data.events.filter(e=>eventOccursOn(e,todayKey())).sort((a,b)=>a.time.localeCompare(b.time))
  const go=(p:Page)=>{setPage(p);setMobileMoreOpen(false)}
  const toggleHabit=(habitId:string)=>setData(prev=>{
@@ -312,12 +338,13 @@ useEffect(() => {
   const task=prev.tasks.find(t=>t.id===taskId)
   if(!task)return prev
   const key=task.recurring?`task:${task.id}:${task.date}`:`task:${task.id}`
-  return {
+  const next:AppData={
     ...prev,
     tasks:prev.tasks.map(t=>t.id===taskId?{...t,done:!t.done}:t),
     activityDays:task.done?prev.activityDays:Array.from(new Set([...(prev.activityDays||[]),todayKey()])),
     ...(!task.done?earn(prev,key,'task',task.skillIds,task.difficulty,task.title):{})
   }
+  return next
  })
  const openAdd=(type:'task'|'habit'|'event',date=todayKey())=>{setEditing(null);setFormTitle('');setFormSkillIds([]);setFormCategory('Travail');setFormPeriod('Matin');setFormRecurring(false);setFormDate(date);setFormTime('09:00');setFormEndTime('10:00');setFormRepeatDays([]);setFormDifficulty('moyen');setFormDays([]);setFormSkillsTouched(false);setFormEventXp(false);setModal(type)}
  const openEdit=(type:'task'|'habit'|'event',record:Task|Habit|Event)=>{setEditing(record.id);setFormTitle(record.title);setFormSkillsTouched(true);setFormDifficulty('difficulty' in record&&record.difficulty?record.difficulty:'moyen');setFormDays('days' in record&&record.days?record.days:[]);setFormSkillIds('skillIds' in record ? (record.skillIds || []) : []);setFormEventXp(Boolean('skillIds' in record&&record.skillIds?.length));setFormCategory(record.category);if('period'in record)setFormPeriod(record.period);if('recurring'in record)setFormRecurring(Boolean(record.recurring));if('date'in record)setFormDate(record.date);if('time'in record){setFormRepeatDays(record.repeatDays||[]);setFormTime(record.time);const [hours,minutes]=record.time.split(':').map(Number);setFormEndTime(record.endTime||`${String(Math.min(hours+1,23)).padStart(2,'0')}:${String(hours===23?Math.min(minutes+1,59):minutes).padStart(2,'0')}`)}setModal(type)}
@@ -434,6 +461,7 @@ useEffect(() => {
   if(!done&&ev.skillIds?.length&&!earned(`event:${ev.id}:${todayKey()}`))setXpFlash({id:ev.id,amount:xpForDifficulty(ev.difficulty)*xpMultiplier(data)*ev.skillIds.length,gold:GOLD_BY_DIFFICULTY[ev.difficulty??'moyen']})
  }
  const tomorrowKey=dateKey(addDays(makeDate(todayKey()),1))
+ useEffect(()=>{if(!goalBanner)return;const timer=window.setTimeout(()=>setGoalBanner(null),4200);return()=>window.clearTimeout(timer)},[goalBanner])
  // Reporter à demain : la tâche n'est plus due aujourd'hui (pas de pénalité de retard pour aujourd'hui).
  const postponeTask=(taskId:string)=>{setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId&&!t.recurring?{...t,date:tomorrowKey,dueDate:undefined}:t)}));keepBriefly(taskId)}
  const handleQuickAdd=(item:QuickAddPayload)=>{
@@ -537,6 +565,7 @@ useEffect(() => {
       <div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>{(boostActive(data)||data.protectedDays?.includes(todayKey()))&&<div className="game-status">{boostActive(data)&&<span>Boost XP ×2 jusqu’à {new Date(data.boostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{data.protectedDays?.includes(todayKey())&&<span>Journée protégée par un joker</span>}</div>}
       <div className="bar" role="progressbar" aria-label="Progression du jour" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dayProgress}><div style={{width:`${dayProgress}%`}}/></div>
      </div>}
+     {focusGoal&&<FocusGoal goal={focusGoal} today={todayKey()} onOpen={()=>go('goals')}/>}
      <section className="list-section today-events">
       <div className="section-head"><h2>Programme</h2><button type="button" className="text-action" onClick={()=>go('calendar')}>Calendrier <ArrowRight size={15}/></button></div>
       <div className="list-card">{visibleEvents.length?visibleEvents.map(ev=>{const xp=Boolean(ev.skillIds?.length);const done=completedEventsToday.includes(ev.id);return <div className={`event-row ${!xp&&eventPast(ev)?'is-past':''} ${leaving.includes(ev.id)&&!showDone?'is-leaving':''}`} key={ev.id}>{xp&&<RoundCheck done={done} label={`${done?'Annuler':'Valider'} ${ev.title}`} onToggle={()=>checkEvent(ev)}/>}<span className="event-time">{ev.time}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span className={done?'is-done':''}>{ev.title}</span><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}{xp?` · +${xpForDifficulty(ev.difficulty)*(ev.skillIds?.length||0)} XP`:''}</small></div>{xpFlash?.id===ev.id&&<span className="xp-flash" aria-hidden="true">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}</div>}):<Empty message={todayEvents.length?'Plus rien de prévu aujourd’hui.':'Rien de prévu aujourd’hui.'}/>}</div>
@@ -621,10 +650,9 @@ useEffect(() => {
       <button type="button" role="tab" aria-selected={goalsTab==='personal'} onClick={()=>setGoalsTab('personal')}><CircleCheck size={16}/> Personnels</button>
       <button type="button" role="tab" aria-selected={goalsTab==='shared'} onClick={()=>setGoalsTab('shared')}><Users size={16}/> Partagés</button>
      </div>
-     {goalsTab==='personal'?<GoalsPage goals={data.goals||[]} onChange={goals=>setData(prev=>{
-      const xpLedger=awardCompletedGoals(prev.xpLedger,prev.goals||[],goals,progressPercent)
-      return {...prev,goals,xpLedger}
-     })}/>:<SharedGoalsPage userId={session.user.id}/>}
+     {goalsTab==='personal'?<GoalsPage goals={data.goals||[]} today={todayKey()} focusGoalId={data.focusGoalId}
+      onChange={goals=>{const today=todayKey();const prevGoals=data.goals||[];const won=goals.map(g=>withCompletion(g,today)).find(g=>{const b=prevGoals.find(x=>x.id===g.id);return (g.completedOn&&!b?.completedOn)||monthlyWins(g).length>(b?monthlyWins(b).length:0)});setData(prev=>applyGoals(prev,goals));if(won)setGoalBanner(won.title)}}
+      onFocus={id=>setData(prev=>({...prev,focusGoalId:id}))}/>:<SharedGoalsPage userId={session.user.id}/>}
     </>}
 
     {page==='calendar'&&<>
@@ -696,8 +724,9 @@ useEffect(() => {
    </>}
    <div className="form-actions">{editing&&<button type="button" className="danger-link" onClick={()=>deleteItem(modal,editing)}><Trash2 size={16}/> Supprimer</button>}<button type="button" className="secondary-btn" onClick={()=>setModal(null)}>Annuler</button><button type="submit" className="primary-btn"><Check size={17}/>{editing?'Enregistrer':'Ajouter'}</button></div>
   </form></Modal>}
-  {chestBanner&&!levelUps[0]&&<div className="levelup is-rank" role="status" aria-live="polite"><span className="levelup-icon"><Sparkles size={18}/></span><span><strong>Coffre de série ouvert !</strong><small>{chestBanner} · {activityStreak} jours d’affilée</small></span></div>}
-  {levelUps[0]&&<div key={levelUps[0].key} className={`levelup ${levelUps[0].rank?'is-rank':''}`} role="status" aria-live="polite"><span className="levelup-icon"><Sparkles size={18}/></span><span><strong>{levelUps[0].title}</strong><small>{levelUps[0].detail}</small></span></div>}
+  {goalBanner&&<div className="levelup is-rank goal-win" role="status" aria-live="polite"><span className="levelup-icon"><Sparkles size={18}/></span><span><strong>Objectif atteint !</strong><small>{goalBanner}</small></span></div>}
+  {chestBanner&&!levelUps[0]&&!goalBanner&&<div className="levelup is-rank" role="status" aria-live="polite"><span className="levelup-icon"><Sparkles size={18}/></span><span><strong>Coffre de série ouvert !</strong><small>{chestBanner} · {activityStreak} jours d’affilée</small></span></div>}
+  {levelUps[0]&&!goalBanner&&<div key={levelUps[0].key} className={`levelup ${levelUps[0].rank?'is-rank':''}`} role="status" aria-live="polite"><span className="levelup-icon"><Sparkles size={18}/></span><span><strong>{levelUps[0].title}</strong><small>{levelUps[0].detail}</small></span></div>}
   {pendingDelete&&<Modal title="Confirmer la suppression" onClose={()=>setPendingDelete(null)}><div className="delete-confirm"><div className="delete-confirm-icon"><Trash2 size={22}/></div><p>Supprimer cet élément ?</p><span>Cette action est irréversible.</span><div className="delete-confirm-actions"><button type="button" className="delete-cancel" onClick={()=>setPendingDelete(null)}>Annuler</button><button type="button" className="delete-danger" onClick={confirmDelete}>Supprimer</button></div></div></Modal>}
  </div>
 }

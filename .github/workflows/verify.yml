@@ -26,6 +26,6 @@ jobs:
       - name: Installer les dépendances
         run: npm install --no-audit --no-fund
       - name: Tester les règles XP
-        run: node scripts/test-xp.mjs && node scripts/test-xp-schedule.mjs && node scripts/test-sync.mjs && node scripts/test-quick.mjs && node scripts/test-reminders.mjs && node scripts/test-game.mjs
+        run: node scripts/test-xp.mjs && node scripts/test-xp-schedule.mjs && node scripts/test-sync.mjs && node scripts/test-quick.mjs && node scripts/test-reminders.mjs && node scripts/test-game.mjs && node scripts/test-goals.mjs
       - name: Vérifier TypeScript et compiler
         run: npm run build
