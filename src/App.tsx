@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Users, MoreHorizontal, GripVertical, ChevronDown, Plus, Repeat2, Settings, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo, Palette, Globe, History, Bell } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import type { FormEvent, ReactNode } from 'react'
+import type { CSSProperties, FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
 import GoalsPage from './GoalsPage'
 import SkillSelector from './SkillSelector'
@@ -209,7 +209,17 @@ function earn(prev:AppData,key:string,source:XpSource,skillIds:SkillId[]|undefin
  if(!skillIds?.length||prev.xpLedger?.events.some(e=>e.key===key))return {}
  return {xpLedger:awardXp(prev.xpLedger,key,source,skillIds,xpForDifficulty(difficulty)*xpMultiplier(prev)),goldLedger:addGold(prev.goldLedger,`gold:${key}`,GOLD_BY_DIFFICULTY[difficulty??'moyen'],label)}
 }
-function RoundCheck({done,label,onToggle}:{done:boolean;label:string;onToggle:()=>void}){return <button type="button" className="round-check" aria-pressed={done} aria-label={label} onClick={onToggle}>{done&&<Check size={15} strokeWidth={3}/>}</button>}
+/** Étincelles de la coche : directions fixes, couleur du thème actif. */
+const CHECK_SPARKS=[[0,-22],[19,-11],[19,11],[0,22],[-19,11],[-19,-11]]
+/** Case ronde : la coche se dessine et quelques étincelles partent, uniquement au moment où l'on coche (pas au chargement). */
+function RoundCheck({done,label,onToggle}:{done:boolean;label:string;onToggle:()=>void}){
+ const [burst,setBurst]=useState(0)
+ const toggle=()=>{if(!done)setBurst(n=>n+1);onToggle()}
+ return <button type="button" className={`round-check ${burst&&done?'is-just-checked':''}`} aria-pressed={done} aria-label={label} onClick={toggle}>
+  {done&&<svg key={burst} className="check-mark" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1}/></svg>}
+  {burst>0&&done&&<span key={`s${burst}`} className="check-sparks" aria-hidden="true">{CHECK_SPARKS.map(([x,y],i)=><i key={i} style={{'--sx':`${x}px`,'--sy':`${y}px`} as CSSProperties}/>)}</span>}
+ </button>
+}
 function App(){
  const [session, setSession] = useState<Session | null>(null)
 const [authLoading, setAuthLoading] = useState(true)
@@ -563,7 +573,7 @@ useEffect(() => {
      </section>
      {dayTotal>0&&<div className="day-progress">
       <div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>{(boostActive(data)||data.protectedDays?.includes(todayKey()))&&<div className="game-status">{boostActive(data)&&<span>Boost XP ×2 jusqu’à {new Date(data.boostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{data.protectedDays?.includes(todayKey())&&<span>Journée protégée par un joker</span>}</div>}
-      <div className="bar" role="progressbar" aria-label="Progression du jour" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dayProgress}><div style={{width:`${dayProgress}%`}}/></div>
+      <div className="bar bar-day" role="progressbar" aria-label="Progression du jour" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dayProgress}><div style={{transform:`scaleX(${dayProgress/100})`}}/>{dayDone>0&&<span key={dayDone} className="bar-shine" aria-hidden="true"/>}</div>
      </div>}
      {focusGoal&&<FocusGoal goal={focusGoal} today={todayKey()} onOpen={()=>go('goals')}/>}
      <section className="list-section today-events">

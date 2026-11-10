@@ -1,6 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import 'tailwindcss';
 
+/* ───────────── Mouvement ─────────────
+   Tokens partagés : ne jamais écrire de durée ou de courbe en dur dans un composant.
+   snappy = cases/boutons · smooth = fiches/listes · bouncy = récompenses uniquement. */
+:root {
+  --dur-fast: .15s; --dur-base: .25s; --dur-slow: .4s;
+  --ease-out: cubic-bezier(.22, 1, .36, 1);
+  --ease-snappy: cubic-bezier(.3, 1.4, .5, 1);
+  --ease-smooth: cubic-bezier(.32, .72, 0, 1);
+  --ease-bouncy: linear(0, .36 8%, .86 18%, 1.09 27%, 1.13 33%, 1.06 43%, .98 55%, 1.01 70%, 1);
+}
+
 /* ───────────── Thèmes ─────────────
    Clair (défaut), sombre et rose doux. Le thème est posé sur <html data-theme>.
    Couleurs testées pour un contraste ≥ 4.5:1 sur les textes. */
@@ -119,6 +130,9 @@ svg { flex-shrink: 0; }
 .transition, .round-check, .switch, .switch > span, .chip, .bar > div, .nav-item, .theme-card, .swipe-front, .segmented button { transition: all .2s ease; }
 :root[data-motion='reduce'] *, :root[data-motion='reduce'] *::before, :root[data-motion='reduce'] *::after { transition: none !important; animation: none !important; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
+/* Mouvement réduit : pas d'étincelles ni de reflet (ils resteraient figés). */
+:root[data-motion='reduce'] .check-sparks, :root[data-motion='reduce'] .bar-shine { display: none; }
+@media (prefers-reduced-motion: reduce) { .check-sparks, .bar-shine { display: none; } }
 
 .mobile-only { display: none !important; }
 .splash { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; color: var(--text-2); font-size: .95rem; padding: 24px; text-align: center; }
@@ -169,6 +183,11 @@ svg { flex-shrink: 0; }
 
 .bar { height: 6px; border-radius: 999px; background: var(--line); overflow: hidden; }
 .bar > div { height: 100%; border-radius: 999px; background: var(--fill-border); }
+/* Barre du jour : remplissage en transform (pas de width) avec un ressort, et un reflet à chaque avancée. */
+.bar-day { position: relative; }
+.bar-day > div { width: 100%; transform-origin: left center; transition: transform .7s var(--ease-bouncy); }
+.bar-shine { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--on-fill) 55%, transparent), transparent); transform: translateX(-100%); animation: bar-shine .9s var(--ease-out) .15s forwards; pointer-events: none; }
+@keyframes bar-shine { to { transform: translateX(100%); } }
 
 /* ───────────── Connexion ───────────── */
 .auth-screen { min-height: 100dvh; display: grid; place-items: center; padding: 24px; }
@@ -281,10 +300,26 @@ svg { flex-shrink: 0; }
 }
 .round-check:hover { border-color: var(--fill-border); }
 .round-check[aria-pressed='true'] { border-color: var(--fill-border); background: var(--fill); }
-.round-check[aria-pressed='true'] svg { animation: check-pop .25s ease; }
-@keyframes check-pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-.xp-flash { flex-shrink: 0; color: var(--accent); font-size: .8rem; font-weight: 600; animation: xp-fade 1.6s ease forwards; }
-@keyframes xp-fade { 0% { opacity: 0; transform: translateY(4px); } 15%, 70% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+.round-check { position: relative; }
+.round-check:active { transform: scale(.88); }
+.check-mark path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+/* Petite victoire : la case rebondit, la coche se dessine, six étincelles partent. */
+.round-check.is-just-checked { animation: check-bounce var(--dur-slow) var(--ease-bouncy); }
+.round-check.is-just-checked .check-mark path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: check-draw .3s var(--ease-out) .06s forwards; }
+@keyframes check-bounce { 0% { transform: scale(.85); } 100% { transform: scale(1); } }
+@keyframes check-draw { to { stroke-dashoffset: 0; } }
+.check-sparks { position: absolute; inset: 0; pointer-events: none; }
+.check-sparks > i { position: absolute; top: 50%; left: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 999px; background: var(--fill-border); opacity: 0; animation: spark .5s var(--ease-out) .05s forwards; }
+.check-sparks > i:nth-child(even) { width: 4px; height: 4px; background: var(--accent); }
+/* « +15 XP » : surgit avec un léger rebond, monte et s'efface. */
+.xp-flash { flex-shrink: 0; color: var(--accent); font-size: .8rem; font-weight: 700; font-variant-numeric: tabular-nums; animation: xp-rise 1.6s var(--ease-out) forwards; }
+@keyframes xp-rise {
+  0% { opacity: 0; transform: translateY(6px) scale(.7); }
+  14% { opacity: 1; transform: translateY(-2px) scale(1.12); }
+  24% { transform: translateY(0) scale(1); }
+  72% { opacity: 1; transform: translateY(-2px); }
+  100% { opacity: 0; transform: translateY(-14px); }
+}
 .event-row { display: flex; align-items: center; gap: 12px; min-height: 3.6rem; padding: 6px 12px 6px 16px; }
 .event-time { min-width: 3.2rem; color: var(--text-2); font-size: .85rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 .event-stripe { width: 4px; height: 1.6rem; flex-shrink: 0; border-radius: 2px; background: var(--cat-lavender); }
@@ -316,8 +351,9 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .swipe-delete { background: var(--danger); color: #FFFFFF; }
 .swipe-front { position: relative; z-index: 1; touch-action: pan-y; background: var(--surface); -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 .swipe-front.is-dragging { transition: none; }
-.swipe-row.is-leaving { animation: row-leave 1.3s ease forwards; }
-@keyframes row-leave { 0%, 70% { opacity: 1; } 100% { opacity: 0; } }
+/* Une fois cochée, la ligne laisse le temps de voir la récompense puis glisse hors de la liste. */
+.swipe-row.is-leaving, .event-row.is-leaving { animation: row-leave 1.3s var(--ease-smooth) forwards; }
+@keyframes row-leave { 0%, 62% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateX(28px) scale(.98); } }
 .event-row.is-past .row-copy > span { color: var(--text-2); }
 .show-done { justify-self: center; grid-column: 1 / -1; }
 
