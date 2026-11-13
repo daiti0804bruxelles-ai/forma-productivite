@@ -715,3 +715,14 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .rest-active span { color: var(--text); font-size: .92rem; }
 .rest-active small { color: var(--text-2); font-size: .8rem; }
 button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); font: inherit; font-size: .78rem; font-weight: 600; cursor: pointer; }
+
+/* Objectifs à deux */
+.goal-section-head { display: flex; align-items: baseline; justify-content: space-between; }
+.goal-section-head .text-action { font-size: .82rem; }
+.goal-who { flex: 0 0 auto !important; margin-left: auto; }
+.goal-share-start { display: block; margin: 18px auto 0; color: var(--text-2); font-size: .85rem; }
+.goal-error { margin-top: 12px; color: var(--danger); font-size: .85rem; }
+.goal-invite { display: flex; gap: 8px; }
+.goal-invite input { flex: 1; min-width: 0; padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: transparent; color: var(--text); font: inherit; }
+.goal-invite-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 14px 16px; border-radius: 16px; background: var(--accent-soft); color: var(--accent-ink); }
+.goal-composer .sheet-head h2 { white-space: nowrap; }
