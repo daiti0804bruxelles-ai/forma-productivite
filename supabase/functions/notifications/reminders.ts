@@ -13,6 +13,7 @@ export type FormaData = {
   habits?: Habit[]; tasks?: Task[]; events?: Event[]
   completedHabits?: Record<string, string[]>; completedEvents?: Record<string, string[]>
   timeZone?: string; notifications?: NotificationPrefs; goals?: GoalLike[]
+  restPeriods?: { from: string; to?: string; skillIds: string[] }[]; excused?: Record<string, string[]>
 }
 export type Reminder = { dedupeKey: string; title: string; body: string; url: string; tag: string }
 
@@ -30,6 +31,13 @@ export function localNow(now: Date, timeZone: string) {
   return { day: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` }
 }
 
+/** Mode repos / excusé (même règle que src/rest.ts) : pas de rappel pour ces éléments. */
+const pausedOn = (data: FormaData, item: Item, day: string) => {
+  if (data.excused?.[day]?.includes(item.id)) return true
+  const paused = new Set((data.restPeriods ?? []).filter(p => p.from <= day && (!p.to || day <= p.to)).flatMap(p => p.skillIds))
+  return Boolean(item.skillIds?.some(s => paused.has(s)))
+}
+
 export function dueReminders(data: FormaData, day: string, time: string): Reminder[] {
   const prefs = { ...DEFAULT_PREFS, ...(data.notifications ?? {}) }
   const now = minutes(time)
@@ -42,6 +50,7 @@ export function dueReminders(data: FormaData, day: string, time: string): Remind
 
   // 1. Avant une activité (fenêtre : de « lead » minutes avant jusqu'au début).
   if (prefs.beforeEvent) for (const e of events) {
+    if (pausedOn(data, e, day)) continue
     const until = minutes(e.time) - now
     if (until > 0 && until <= prefs.leadMinutes) out.push({
       dedupeKey: `event:${e.id}:${day}`, tag: `event-${e.id}`, url: '/',
@@ -52,9 +61,9 @@ export function dueReminders(data: FormaData, day: string, time: string): Remind
 
   // 2. Rappel du soir : seulement s'il reste quelque chose qui coûte de l'XP.
   if (prefs.evening && now >= minutes(prefs.eveningTime)) {
-    const habits = habitsToday.filter(h => !doneHabits.includes(h.id))
-    const xpEvents = events.filter(e => e.skillIds?.length && !doneEvents.includes(e.id))
-    const tasks = tasksToday.filter(t => !t.done)
+    const habits = habitsToday.filter(h => !doneHabits.includes(h.id) && !pausedOn(data, h, day))
+    const xpEvents = events.filter(e => e.skillIds?.length && !doneEvents.includes(e.id) && !pausedOn(data, e, day))
+    const tasks = tasksToday.filter(t => !t.done && !pausedOn(data, t, day))
     const risk = habits.reduce((s, h) => s + 5 * (h.skillIds?.length ?? 0), 0)
       + xpEvents.reduce((s, e) => s + 5 * (e.skillIds?.length ?? 0), 0)
       + tasks.reduce((s, t) => s + (t.recurring ? 1.5 : 5) * (t.skillIds?.length ?? 0), 0)

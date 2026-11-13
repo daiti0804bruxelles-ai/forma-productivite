@@ -30,6 +30,8 @@ import NotificationSettings from './NotificationSettings'
 import { isNotificationPrefs, type NotificationPrefs } from './push'
 import type { Session } from '@supabase/supabase-js'
 import SwipeRow from './SwipeRow'
+import RestMode, { restSkillsLabel } from './RestMode'
+import { activeRests, isPaused, isExcused, isRestPeriod, type Excused, type RestPeriod } from './rest'
 import StreakFlame from './StreakFlame'
 import { useSortable, type SortGroups } from './useSortable'
 import QuickAdd, { type QuickAddPayload, type QuickAddType } from './QuickAdd'
@@ -41,7 +43,7 @@ type Habit = { id:string; title:string; period:Period; category:string; skillIds
 type Subtask = { id:string; title:string; done:boolean }
 type Task = { id:string; goalStep?:{goalId:string;stepId:string}; subtasks?:Subtask[]; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[]; dueDate?:string; createdOn?:string; difficulty?:Difficulty }
 type Event = { id:string; title:string; date:string; time:string; endTime?:string; category:string; repeatDays?:number[]; skillIds?:SkillId[]; difficulty?:Difficulty; createdOn?:string }
-type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string; notifications?:NotificationPrefs; focusGoalId?:string } & GameState
+type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string; notifications?:NotificationPrefs; focusGoalId?:string; restPeriods?:RestPeriod[]; excused?:Excused } & GameState
 const todayKey = () => currentDayKey()
 const weekdayOptions=[{day:1,label:'Lun'},{day:2,label:'Mar'},{day:3,label:'Mer'},{day:4,label:'Jeu'},{day:5,label:'Ven'},{day:6,label:'Sam'},{day:0,label:'Dim'}]
 
@@ -88,6 +90,8 @@ function isAppData(value:unknown):value is AppData{
  if(d.inventory!==undefined&&!isInventory(d.inventory))return false
  if(d.protectedDays!==undefined&&(!Array.isArray(d.protectedDays)||d.protectedDays.length>5000||!d.protectedDays.every(validDate)))return false
  if(d.frozenDays!==undefined&&(!Array.isArray(d.frozenDays)||d.frozenDays.length>5000||!d.frozenDays.every(validDate)))return false
+ if(d.restPeriods!==undefined&&(!Array.isArray(d.restPeriods)||d.restPeriods.length>500||!d.restPeriods.every(isRestPeriod)))return false
+ if(d.excused!==undefined&&!isExcused(d.excused))return false
  if(d.boostUntil!==undefined&&(typeof d.boostUntil!=='string'||Number.isNaN(Date.parse(d.boostUntil))))return false
  if(d.legacyXpLedger!==undefined&&!isValidXpLedger(d.legacyXpLedger))return false
  const validDays=(days:unknown)=>days===undefined||(Array.isArray(days)&&days.length>=1&&days.length<=7&&days.every(day=>Number.isInteger(day)&&day>=0&&day<=6)&&new Set(days).size===days.length)
@@ -357,6 +361,7 @@ useEffect(() => {
  const [timeZoneOpen,setTimeZoneOpen]=useState(false)
  const [statsHabitId,setStatsHabitId]=useState<string|null>(null)
  const [notificationsOpen,setNotificationsOpen]=useState(false)
+ const [restOpen,setRestOpen]=useState(false)
  const openBackup=()=>{setBackupError('');setRestorePreview(null);setBackupOpen(true);setSettingsOpen(false);setAutoBackups(null);if(session?.user?.id)listBackups(session.user.id).then(setAutoBackups).catch(()=>setAutoBackups([]))}
  const previewAutoBackup=async(backupId:string)=>{
   if(!session?.user?.id)return
@@ -426,7 +431,7 @@ useEffect(() => {
  const appearance=dataLoading?cachedAppearance:(data.appearance??cachedAppearance)
  useAppearance(appearance)
  useEffect(()=>{if(!xpFlash)return;const timer=window.setTimeout(()=>setXpFlash(null),1600);return()=>window.clearTimeout(timer)},[xpFlash])
- const anyOverlayOpen=Boolean(shopOpen||notificationsOpen||statsHabitId||modal||pendingDelete||backupOpen||appearanceOpen||timeZoneOpen||quickAdd||mobileMoreOpen)
+ const anyOverlayOpen=Boolean(shopOpen||notificationsOpen||restOpen||statsHabitId||modal||pendingDelete||backupOpen||appearanceOpen||timeZoneOpen||quickAdd||mobileMoreOpen)
  useEffect(()=>{
   if(anyOverlayOpen)return
   const onKey=(e:KeyboardEvent)=>{
@@ -485,8 +490,18 @@ useEffect(() => {
  const visibleHabits=showDone?sortedHabits:sortedHabits.filter(h=>!completed.includes(h.id)||leaving.includes(h.id))
  const hiddenCount=todayEvents.filter(ev=>ev.skillIds?.length?completedEventsToday.includes(ev.id):eventPast(ev)).length+orderedTodayTasks.filter(t=>t.done).length+sortedHabits.filter(h=>completed.includes(h.id)).length
  const xpEventsToday=todayEvents.filter(ev=>ev.skillIds?.length)
+ // Mode repos / excusé : pas de pénalité, et l'élément ne compte plus dans la progression du jour (sauf s'il est quand même fait).
+ const pausedToday=(item:{id:string;skillIds?:readonly string[]})=>isPaused(item,todayKey(),data.restPeriods,data.excused)
+ const excusedToday=(itemId:string)=>Boolean(data.excused?.[todayKey()]?.includes(itemId))
+ const restsToday=activeRests(data.restPeriods,todayKey())
+ const toggleExcuse=(itemId:string)=>setData(prev=>{const day=todayKey();const list=prev.excused?.[day]||[];const limit=dateKey(addDays(makeDate(day),-60))
+  const kept=Object.fromEntries(Object.entries(prev.excused||{}).filter(([d])=>d>=limit&&d!==day))
+  const next=list.includes(itemId)?list.filter(x=>x!==itemId):[...list,itemId]
+  return {...prev,excused:next.length?{...kept,[day]:next}:kept}})
+ const pausedTag=(item:{id:string;skillIds?:readonly string[]},done:boolean)=>!done&&pausedToday(item)?<span className="paused-tag"> · {excusedToday(item.id)?'Excusé':'En repos'}</span>:null
+ const counts=<T extends {id:string;skillIds?:readonly string[]}>(list:T[],isDone:(x:T)=>boolean)=>list.filter(x=>isDone(x)||!pausedToday(x))
  const dayDone=doneTasks+habitsDone+xpEventsToday.filter(ev=>completedEventsToday.includes(ev.id)).length
- const dayTotal=todaysTasks.length+todaysHabits.length+xpEventsToday.length
+ const dayTotal=counts(todaysTasks,t=>t.done).length+counts(todaysHabits,h=>completed.includes(h.id)).length+counts(xpEventsToday,ev=>completedEventsToday.includes(ev.id)).length
  const dayProgress=dayTotal?Math.round(dayDone/dayTotal*100):0
  const showFab=page==='dashboard'||page==='habits'||page==='tasks'||page==='calendar'
  const subtaskCount=(t:Task)=>{const list=t.subtasks||[];return list.length?`${list.filter(st=>st.done).length}/${list.length}`:''}
@@ -547,6 +562,7 @@ useEffect(() => {
       {settingsOpen&&<div role="menu" aria-label="Paramètres" className="menu-popover">
        <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setAppearanceOpen(true)}}><Palette size={17}/> Apparence</button>
        <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setNotificationsOpen(true)}}><Bell size={17}/> Notifications</button>
+       <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setRestOpen(true)}}><Moon size={17}/> Mode repos</button>
        <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setTimeZoneOpen(true)}}><Globe size={17}/> Fuseau horaire</button>
        <button type="button" role="menuitem" className="menu-item" onClick={openBackup}><Download size={17}/> Sauvegarde et restauration</button>
       </div>}
@@ -561,31 +577,32 @@ useEffect(() => {
       <div><p className="today-date">{frDate(makeDate(todayKey()),{weekday:'long',day:'numeric',month:'long'})}</p><h1>Aujourd’hui</h1></div>
       <StreakFlame streak={activityStreak} activeToday={activityDays.has(todayKey())}/>
      </section>
-     {dayTotal>0&&<div className="day-progress">
-      <div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>{(boostActive(data)||data.protectedDays?.includes(todayKey()))&&<div className="game-status">{boostActive(data)&&<span>Boost XP ×2 jusqu’à {new Date(data.boostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{data.protectedDays?.includes(todayKey())&&<span>Journée protégée par un joker</span>}</div>}
-      <div className="bar" role="progressbar" aria-label="Progression du jour" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dayProgress}><div style={{width:`${dayProgress}%`}}/></div>
+     {(dayTotal>0||restsToday.length>0)&&<div className="day-progress">
+      {dayTotal>0&&<div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>}{(boostActive(data)||data.protectedDays?.includes(todayKey())||restsToday.length>0)&&<div className="game-status">{restsToday.length>0&&<button type="button" className="game-chip" onClick={()=>setRestOpen(true)}>Mode repos · {restSkillsLabel([...new Set(restsToday.flatMap(r=>r.skillIds))])}</button>}{boostActive(data)&&<span>Boost XP ×2 jusqu’à {new Date(data.boostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{data.protectedDays?.includes(todayKey())&&<span>Journée protégée par un joker</span>}</div>}
+      {dayTotal>0&&<div className="bar" role="progressbar" aria-label="Progression du jour" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dayProgress}><div style={{width:`${dayProgress}%`}}/></div>}
      </div>}
      {focusGoal&&<FocusGoal goal={focusGoal} today={todayKey()} onOpen={()=>go('goals')}/>}
      <section className="list-section today-events">
       <div className="section-head"><h2>Programme</h2><button type="button" className="text-action" onClick={()=>go('calendar')}>Calendrier <ArrowRight size={15}/></button></div>
-      <div className="list-card">{visibleEvents.length?visibleEvents.map(ev=>{const xp=Boolean(ev.skillIds?.length);const done=completedEventsToday.includes(ev.id);return <div className={`event-row ${!xp&&eventPast(ev)?'is-past':''} ${leaving.includes(ev.id)&&!showDone?'is-leaving':''}`} key={ev.id}>{xp&&<RoundCheck done={done} label={`${done?'Annuler':'Valider'} ${ev.title}`} onToggle={()=>checkEvent(ev)}/>}<span className="event-time">{ev.time}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span className={done?'is-done':''}>{ev.title}</span><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}{xp?` · +${xpForDifficulty(ev.difficulty)*(ev.skillIds?.length||0)} XP`:''}</small></div>{xpFlash?.id===ev.id&&<span className="xp-flash" aria-hidden="true">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}</div>}):<Empty message={todayEvents.length?'Plus rien de prévu aujourd’hui.':'Rien de prévu aujourd’hui.'}/>}</div>
+      <div className="list-card">{visibleEvents.length?visibleEvents.map(ev=>{const xp=Boolean(ev.skillIds?.length);const done=completedEventsToday.includes(ev.id);const paused=xp&&!done&&pausedToday(ev);const row=<div className={`event-row ${!xp&&eventPast(ev)?'is-past':''} ${paused?'is-paused':''} ${leaving.includes(ev.id)&&!showDone&&!xp?'is-leaving':''}`}>{xp&&<RoundCheck done={done} label={`${done?'Annuler':'Valider'} ${ev.title}`} onToggle={()=>checkEvent(ev)}/>}<span className="event-time">{ev.time}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span className={done?'is-done':''}>{ev.title}</span><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}{xp&&!paused?` · +${xpForDifficulty(ev.difficulty)*(ev.skillIds?.length||0)} XP`:''}{xp&&pausedTag(ev,done)}</small></div>{xpFlash?.id===ev.id&&<span className="xp-flash" aria-hidden="true">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}</div>
+       return xp?<SwipeRow key={ev.id} className={leaving.includes(ev.id)&&!showDone?'is-leaving':''} done={done} completeLabel="Valider" onComplete={()=>checkEvent(ev)} onExcuse={!done&&(excusedToday(ev.id)||!pausedToday(ev))?()=>toggleExcuse(ev.id):undefined} excused={excusedToday(ev.id)}>{row}</SwipeRow>:<div key={ev.id}>{row}</div>}):<Empty message={todayEvents.length?'Plus rien de prévu aujourd’hui.':'Rien de prévu aujourd’hui.'}/>}</div>
      </section>
      <section className="list-section today-tasks">
       <div className="section-head"><h2>Tâches</h2><button type="button" className="text-action" onClick={()=>go('tasks')}>Tout voir <ArrowRight size={15}/></button></div>
-      <div className="list-card">{visibleTasks.length?visibleTasks.map(t=><SwipeRow key={t.id} className={leaving.includes(t.id)&&!showDone?'is-leaving':''} done={t.done} onComplete={()=>checkTask(t)} onPostpone={!t.recurring&&!t.done?()=>postponeTask(t.id):undefined} onDelete={()=>deleteItem('task',t.id)}>
+      <div className="list-card">{visibleTasks.length?visibleTasks.map(t=><SwipeRow key={t.id} className={`${leaving.includes(t.id)&&!showDone?'is-leaving':''} ${!t.done&&pausedToday(t)?'is-paused':''}`} done={t.done} onComplete={()=>checkTask(t)} onPostpone={!t.recurring&&!t.done?()=>postponeTask(t.id):undefined} onExcuse={t.recurring&&!t.done&&(excusedToday(t.id)||!pausedToday(t))?()=>toggleExcuse(t.id):undefined} excused={excusedToday(t.id)} onDelete={()=>deleteItem('task',t.id)}>
        <div className="check-row">
         <RoundCheck done={t.done} label={`${t.done?'Rouvrir':'Terminer'} ${t.title}`} onToggle={()=>checkTask(t)}/>
-        <div className="row-copy"><span className={t.done?'is-done':''}>{t.title}</span><small>{t.category}{t.recurring?' · chaque jour':''}{subtaskCount(t)?` · ${subtaskCount(t)}`:''}</small></div>
+        <div className="row-copy"><span className={t.done?'is-done':''}>{t.title}</span><small>{t.category}{t.recurring?' · chaque jour':''}{subtaskCount(t)?` · ${subtaskCount(t)}`:''}{pausedTag(t,t.done)}</small></div>
         {xpFlash?.id===t.id&&<span className="xp-flash">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}
        </div>
       </SwipeRow>):<Empty message={orderedTodayTasks.length?'Toutes tes tâches du jour sont faites.':'Aucune tâche pour aujourd’hui.'}/>}</div>
      </section>
      <section className="list-section today-habits">
       <div className="section-head"><h2>Habitudes</h2><button type="button" className="text-action" onClick={()=>go('habits')}>Gérer <ArrowRight size={15}/></button></div>
-      <div className="list-card">{visibleHabits.length?visibleHabits.map(h=>{const done=completed.includes(h.id);return <SwipeRow key={h.id} className={leaving.includes(h.id)&&!showDone?'is-leaving':''} done={done} completeLabel="Valider" onComplete={()=>checkHabit(h)}>
+      <div className="list-card">{visibleHabits.length?visibleHabits.map(h=>{const done=completed.includes(h.id);return <SwipeRow key={h.id} className={`${leaving.includes(h.id)&&!showDone?'is-leaving':''} ${!done&&pausedToday(h)?'is-paused':''}`} done={done} completeLabel="Valider" onComplete={()=>checkHabit(h)} onExcuse={!done&&(excusedToday(h.id)||!pausedToday(h))?()=>toggleExcuse(h.id):undefined} excused={excusedToday(h.id)}>
        <div className="check-row">
         <RoundCheck done={done} label={`${done?'Décocher':'Cocher'} ${h.title}`} onToggle={()=>checkHabit(h)}/>
-        <div className="row-copy"><span className={done?'is-done':''}>{h.title}</span><small>{h.period} · {h.category}</small></div>
+        <div className="row-copy"><span className={done?'is-done':''}>{h.title}</span><small>{h.period} · {h.category}{pausedTag(h,done)}</small></div>
         {xpFlash?.id===h.id&&<span className="xp-flash">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}
        </div>
       </SwipeRow>}):<Empty message={sortedHabits.length?'Toutes tes habitudes du jour sont faites.':'Aucune habitude pour le moment.'}/>}</div>
@@ -696,6 +713,7 @@ useEffect(() => {
 
   {quickAdd&&<QuickAdd initialType={quickAdd} today={todayKey()} tomorrow={tomorrowKey} categories={categories} onClose={()=>setQuickAdd(null)} onSubmit={handleQuickAdd} onMoreOptions={quickAddMore}/>}
   {statsHabitId&&(()=>{const h=data.habits.find(x=>x.id===statsHabitId);return h?<Modal title={h.title} onClose={()=>setStatsHabitId(null)}><HabitStatsView habit={h} completed={data.completedHabits} today={todayKey()} ledger={data.xpLedger}/><div className="form-actions"><button type="button" className="secondary-btn" onClick={()=>{setStatsHabitId(null);openEdit('habit',h)}}><Pencil size={16}/> Modifier</button></div></Modal>:null})()}
+  {restOpen&&<Modal title="Mode repos" onClose={()=>setRestOpen(false)}><RestMode periods={data.restPeriods||[]} today={todayKey()} newId={id} onChange={next=>setData(prev=>({...prev,restPeriods:next}))}/></Modal>}
   {notificationsOpen&&session?.user?.id&&<Modal title="Notifications" onClose={()=>setNotificationsOpen(false)}><NotificationSettings userId={session.user.id} prefs={data.notifications} onChange={next=>setData(prev=>({...prev,notifications:next}))}/></Modal>}
   {shopOpen&&<Modal title="Boutique" onClose={()=>setShopOpen(false)}><Shop state={data} today={todayKey()} onChange={next=>setData(prev=>({...prev,...next}))}/></Modal>}
   {timeZoneOpen&&<Modal title="Fuseau horaire" onClose={()=>setTimeZoneOpen(false)}><TimeZoneSettings value={data.timeZone} onChange={zone=>setData(prev=>{const next={...prev};if(zone)next.timeZone=zone;else delete next.timeZone;return next})}/></Modal>}

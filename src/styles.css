@@ -577,6 +577,7 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .quick-understood strong { font-weight: 700; }
 .quick-understood .text-action { min-height: 28px; padding: 0 2px; flex-shrink: 0; }
 .swipe-postpone { background: var(--surface-2); color: var(--text); }
+.swipe-excuse { background: var(--surface-2); color: var(--text-2); }
 .habit-stats { display: grid; gap: 18px; }
 .stat-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .stat-tiles div { display: grid; gap: 2px; padding: 12px 10px; border-radius: 14px; background: var(--surface-2); text-align: center; }
@@ -702,3 +703,15 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 .goal-understood { margin-top: -6px; padding: 0 4px; color: var(--text-2); font-size: .85rem; }
 .goal-phrase { border-color: var(--line); }
 .goal-phrase:focus { border-color: var(--fill-border); outline: none; }
+
+/* Mode repos et éléments excusés */
+.is-paused .row-copy > span, .is-paused .event-time { color: var(--text-2); }
+.is-paused .round-check { opacity: .45; }
+.paused-tag { color: var(--text-2); }
+.rest-mode { display: grid; gap: 14px; }
+.rest-skills { margin-top: 6px; }
+.rest-active { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border-radius: 14px; background: var(--surface-2); }
+.rest-active div { display: grid; gap: 2px; min-width: 0; }
+.rest-active span { color: var(--text); font-size: .92rem; }
+.rest-active small { color: var(--text-2); font-size: .8rem; }
+button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; background: var(--surface-2); color: var(--text-2); font: inherit; font-size: .78rem; font-weight: 600; cursor: pointer; }

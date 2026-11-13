@@ -26,6 +26,10 @@ assert.equal(r[0].body, 'Méditer · Musculation · Appeler le comptable… — 
 // Tout fait : pas de rappel du soir.
 const done = { ...data, completedHabits: { [day]: ['h1'] }, completedEvents: { [day]: ['e1'] }, tasks: data.tasks.map(t => ({ ...t, done: true })) }
 assert.deepEqual(keys(done, '21:30'), [])
+// Mode repos (sport) + méditation excusée : seulement le comptable, et pas de rappel avant la musculation.
+const sick = { ...data, restPeriods: [{ from: '2026-11-08', skillIds: ['strength', 'cardio'] }], excused: { [day]: ['h1'] } }
+r = dueReminders(sick, day, '21:00'); assert.equal(r[0].title, 'Il te reste 1 élément aujourd’hui'); assert.equal(r[0].body, 'Appeler le comptable — sinon −5 XP')
+assert.deepEqual(keys(sick, '17:50'), [], 'pas de rappel pour une activité en repos')
 // Préférences : tout coupé.
 assert.deepEqual(keys({ ...data, notifications: { beforeEvent: false, evening: false, morning: false } }, '21:00'), [])
 // Heure locale selon le fuseau.

@@ -1,5 +1,6 @@
 import { penalizeXp, type XpLedger } from './xpEngine'
 import type { SkillId } from './skillsCatalog'
+import { isPaused, type Excused, type RestPeriod } from './rest'
 
 export type ScheduledHabit = { id: string; skillIds?: SkillId[]; createdOn?: string; days?: number[] }
 export type ScheduledTask = { id: string; date: string; done: boolean; recurring?: boolean; skillIds?: SkillId[]; dueDate?: string; createdOn?: string }
@@ -16,6 +17,8 @@ export type ScheduledData<H extends ScheduledHabit, T extends ScheduledTask> = {
   protectedDays?: string[]
   frozenDays?: string[]
   inventory?: { joker?: number; shield?: number }
+  restPeriods?: RestPeriod[]
+  excused?: Excused
 }
 const toDate = (s: string) => { const [y,m,d] = s.split('-').map(Number); return new Date(y,m-1,d) }
 const keyOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -50,6 +53,8 @@ export function rollOverTasks<H extends ScheduledHabit, T extends ScheduledTask>
         if (habit.createdOn && habit.createdOn > key) continue
         // Jour de repos prévu : pas de pénalité.
         if (habit.days && habit.days.length && !habit.days.includes(day.getDay())) continue
+        // Mode repos ou élément excusé : pas de pénalité.
+        if (isPaused(habit, key, value.restPeriods, value.excused)) continue
         if (!(value.completedHabits[key] || []).includes(habit.id)) {
           xpLedger = penalizeXp(xpLedger, `missed-habit:${habit.id}:${key}`, habit.skillIds, -5)
         }
@@ -59,12 +64,14 @@ export function rollOverTasks<H extends ScheduledHabit, T extends ScheduledTask>
       for (const event of value.events ?? []) {
         if (!event.skillIds?.length || !event.createdOn || event.createdOn > key) continue
         if (!eventOccursOn(event, key)) continue
+        if (isPaused(event, key, value.restPeriods, value.excused)) continue
         if (!(value.completedEvents?.[key] || []).includes(event.id)) {
           xpLedger = penalizeXp(xpLedger, `missed-event:${event.id}:${key}`, event.skillIds, -5)
         }
       }
       for (const task of value.tasks) {
         if (task.createdOn && task.createdOn > key) continue
+        if (isPaused(task, key, value.restPeriods, value.excused)) continue
         if (task.recurring) {
           // Les validations des jours précédents restent dans le journal XP.
           // Le champ done ne décrit que l'occurrence actuellement affichée.
