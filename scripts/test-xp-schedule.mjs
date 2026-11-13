@@ -58,4 +58,10 @@ assert.deepEqual(week.xpLedger.events.find(e=>e.key==='missed-event:e1:2026-11-0
 assert.equal(keys.some(k=>k.includes(':e2:')),false,'activité sans compétences : jamais de pénalité')
 const before=rollOverTasks({habits:[],tasks:[],events:[{...sport,createdOn:'2026-11-05'}],completedHabits:{},lastPenaltyCheckDate:'2026-11-02'},'2026-11-07')
 assert.deepEqual(before.xpLedger.events.map(e=>e.key),['missed-event:e1:2026-11-06'],'pas de pénalité avant l’activation de l’XP')
+// Mode repos : Musculation + Cardio en pause du 9 au 11 ; une habitude de lecture reste pénalisée ; excuser un élément un jour.
+const sick=rollOverTasks({habits:[{id:'gym',skillIds:['strength','consistency'],createdOn:'2026-11-01'},{id:'read',skillIds:['reading'],createdOn:'2026-11-01'}],
+  tasks:[],events:[{id:'run',date:'2026-11-02',repeatDays:[0,1,2,3,4,5,6],skillIds:['cardio'],createdOn:'2026-11-02'}],completedHabits:{},
+  restPeriods:[{id:'r',from:'2026-11-09',to:'2026-11-11',skillIds:['strength','cardio'],reason:'Malade'}],excused:{'2026-11-12':['read']},lastPenaltyCheckDate:'2026-11-09'},'2026-11-13')
+const sickKeys=sick.xpLedger.events.map(e=>e.key).sort()
+assert.deepEqual(sickKeys,['missed-event:run:2026-11-12','missed-habit:gym:2026-11-12','missed-habit:read:2026-11-09','missed-habit:read:2026-11-10','missed-habit:read:2026-11-11'],'repos du 9 au 11 pour le sport, lecture excusée le 12')
 console.log('Tests de calendrier XP réussis : échéances, journées manquées, récurrence, création, idempotence.')
