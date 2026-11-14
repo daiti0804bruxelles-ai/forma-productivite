@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, Users, MoreHorizontal, GripVertical, ChevronDown, Plus, Repeat2, Settings, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo, Palette, Globe, History, Bell } from 'lucide-react'
+import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, MoreHorizontal, GripVertical, ChevronDown, Plus, Repeat2, Settings, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo, Palette, Globe, History, Bell } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
@@ -9,7 +9,6 @@ import SkillsPage from './SkillsPage'
 import { isAvatarPath } from './avatarStorage'
 import { isCharacterAppearance, type CharacterAppearance } from './CharacterPage'
 import { isSkillId, type SkillId } from './skillsCatalog'
-import SharedGoalsPage from './SharedGoalsPage'
 import type { Goal } from './GoalsPage'
 import { isValidGoal, migrateGoals, withCompletion, GOAL_GOLD, GOAL_XP, isComplete, monthlyWins } from './goalModel'
 import { FocusGoal } from './GoalsPage'
@@ -250,8 +249,8 @@ useEffect(()=>{
  return ()=>{window.clearInterval(interval);window.removeEventListener('focus',refresh)}
 },[dataLoading])
 
- const [page,setPage]=useState<Page>('dashboard')
- const [goalsTab,setGoalsTab]=useState<'personal'|'shared'>('personal')
+ const [page,setPage]=useState<Page>(()=>new URLSearchParams(window.location.search).get('invite')?'goals':'dashboard')
+ const [inviteId,setInviteId]=useState(()=>new URLSearchParams(window.location.search).get('invite')||'')
   const [mobileMoreOpen,setMobileMoreOpen]=useState(false)
  const [modal,setModal]=useState<'task'|'habit'|'event'|null>(null)
  const [editing,setEditing]=useState<string|null>(null)
@@ -663,13 +662,9 @@ useEffect(() => {
     </>}
 
     {page==='goals'&&<>
-     <div className="segmented goals-tabs" role="tablist" aria-label="Type d'objectifs">
-      <button type="button" role="tab" aria-selected={goalsTab==='personal'} onClick={()=>setGoalsTab('personal')}><CircleCheck size={16}/> Personnels</button>
-      <button type="button" role="tab" aria-selected={goalsTab==='shared'} onClick={()=>setGoalsTab('shared')}><Users size={16}/> Partagés</button>
-     </div>
-     {goalsTab==='personal'?<GoalsPage goals={data.goals||[]} today={todayKey()} focusGoalId={data.focusGoalId}
+     <GoalsPage goals={data.goals||[]} today={todayKey()} focusGoalId={data.focusGoalId} userId={session?.user?.id} invitationId={inviteId||undefined} onInviteDone={()=>{setInviteId('');window.history.replaceState(null,'',window.location.pathname)}}
       onChange={goals=>{const today=todayKey();const prevGoals=data.goals||[];const won=goals.map(g=>withCompletion(g,today)).find(g=>{const b=prevGoals.find(x=>x.id===g.id);return (g.completedOn&&!b?.completedOn)||monthlyWins(g).length>(b?monthlyWins(b).length:0)});setData(prev=>applyGoals(prev,goals));if(won)setGoalBanner(won.title)}}
-      onFocus={id=>setData(prev=>({...prev,focusGoalId:id}))}/>:<SharedGoalsPage userId={session.user.id}/>}
+      onFocus={id=>setData(prev=>({...prev,focusGoalId:id}))}/>
     </>}
 
     {page==='calendar'&&<>
