@@ -726,3 +726,14 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 .goal-invite input { flex: 1; min-width: 0; padding: 11px 12px; border: 1px solid var(--border); border-radius: 12px; background: transparent; color: var(--text); font: inherit; }
 .goal-invite-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; padding: 14px 16px; border-radius: 16px; background: var(--accent-soft); color: var(--accent-ink); }
 .goal-composer .sheet-head h2 { white-space: nowrap; }
+
+/* Cartes d'objectifs glissables : Modifier / Supprimer */
+.goal-swipe { border-radius: 18px; box-shadow: var(--shadow); }
+.goal-swipe .swipe-front { background: transparent; }
+.goal-swipe .goal-card { box-shadow: none; }
+.swipe-edit { background: var(--surface-2); color: var(--text); }
+.goal-pad-links { display: flex; gap: 14px; }
+.goal-confirm { display: grid; gap: 10px; }
+.goal-confirm h2 { font-size: 1.15rem; font-weight: 700; }
+.goal-confirm p { color: var(--text-2); font-size: .9rem; }
+.danger-btn { display: inline-flex; align-items: center; gap: 6px; padding: 11px 18px; border: 0; border-radius: 12px; background: var(--danger); color: #fff; font: inherit; font-weight: 600; }

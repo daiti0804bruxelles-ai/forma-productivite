@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ChevronRight, Copy, Delete, Plus, Trash2, X } from 'lucide-react'
+import SwipeRow from './SwipeRow'
 import { inviteLink, useSharedGoals, type SharedGoal } from './useSharedGoals'
 import SkillSelector from './SkillSelector'
 import { suggestSkills } from './skillSuggest'
@@ -43,7 +44,7 @@ export function FocusGoal({ goal, today, onOpen }: { goal: Goal; today: string; 
 }
 
 /* ---------- Pavé numérique : la mise à jour en un geste ---------- */
-function NumberPad({ goal, today, onSubmit, onDetails, onClose }: { goal: Goal; today: string; onSubmit: (value: number) => void; onDetails: () => void; onClose: () => void }) {
+function NumberPad({ goal, today, onSubmit, onDetails, onEdit, onClose }: { goal: Goal; today: string; onSubmit: (value: number) => void; onDetails: () => void; onEdit: () => void; onClose: () => void }) {
   const [entry, setEntry] = useState('')
   const value = Number(entry.replace(',', '.'))
   const valid = entry !== '' && Number.isFinite(value) && (goal.mode === 'value' || value !== 0)
@@ -68,7 +69,7 @@ function NumberPad({ goal, today, onSubmit, onDetails, onClose }: { goal: Goal; 
       <div className="sheet-grabber" aria-hidden="true" />
       <div className="goal-pad-head">
         <strong>{goal.title}</strong>
-        <button type="button" className="text-action" onClick={onDetails}>Détails</button>
+        <span className="goal-pad-links"><button type="button" className="text-action" onClick={onDetails}>Détails</button><button type="button" className="text-action" onClick={onEdit}>Modifier</button></span>
       </div>
       <div className="goal-pad-display" aria-live="polite">
         <span className={entry ? '' : 'is-empty'}>{goal.mode === 'add' ? '+ ' : ''}{entry ? pretty(entry) : '0'}{u(goal)}</span>
@@ -83,10 +84,10 @@ function NumberPad({ goal, today, onSubmit, onDetails, onClose }: { goal: Goal; 
 }
 
 /* ---------- Détails (tout le reste) ---------- */
-function GoalDetails({ goal, today, focused, onChange, onDelete, onFocus, onClose }: {
-  goal: Goal; today: string; focused: boolean; onChange: (g: Goal) => void; onDelete: () => void; onFocus: (on: boolean) => void; onClose: () => void
+function GoalDetails({ goal, today, focused, startEditing, onChange, onDelete, onFocus, onClose }: {
+  goal: Goal; today: string; focused: boolean; startEditing?: boolean; onChange: (g: Goal) => void; onDelete: () => void; onFocus: (on: boolean) => void; onClose: () => void
 }) {
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(Boolean(startEditing))
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [title, setTitle] = useState(goal.title)
   const [target, setTarget] = useState(String(goal.target))
@@ -217,6 +218,18 @@ function Composer({ today, canShare, onCreate, onCreateShared, onClose }: { toda
   </div>
 }
 
+/* ---------- Confirmation de suppression ---------- */
+function ConfirmDelete({ title, shared, onConfirm, onClose }: { title: string; shared?: boolean; onConfirm: () => void; onClose: () => void }) {
+  return <div className="sheet-backdrop" onMouseDown={onClose}>
+    <div className="sheet goal-confirm" role="alertdialog" aria-modal="true" aria-label={`Supprimer ${title}`} onMouseDown={e => e.stopPropagation()}>
+      <div className="sheet-grabber" aria-hidden="true" />
+      <h2>Supprimer « {title} » ?</h2>
+      <p>{shared ? 'Il sera aussi supprimé pour l’autre membre, avec toutes les saisies.' : 'Son historique sera effacé.'}</p>
+      <div className="sheet-actions"><button type="button" className="text-action" onClick={onClose}>Annuler</button><button type="button" className="danger-btn" onClick={onConfirm}><Trash2 size={16} /> Supprimer</button></div>
+    </div>
+  </div>
+}
+
 /* ---------- À deux ---------- */
 function SharedCard({ goal, today, onOpen }: { goal: SharedGoal; today: string; onOpen: () => void }) {
   return <button type="button" className="goal-card" onClick={onOpen} aria-label={`${goal.title} : ajouter`}>
@@ -228,8 +241,8 @@ function SharedCard({ goal, today, onOpen }: { goal: SharedGoal; today: string; 
   </button>
 }
 
-function SharedDetails({ goal, today, shared, onClose }: { goal: SharedGoal; today: string; shared: Shared; onClose: () => void }) {
-  const [editing, setEditing] = useState(false)
+function SharedDetails({ goal, today, shared, startEditing, onClose }: { goal: SharedGoal; today: string; shared: Shared; startEditing?: boolean; onClose: () => void }) {
+  const [editing, setEditing] = useState(Boolean(startEditing))
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [title, setTitle] = useState(goal.title)
   const [target, setTarget] = useState(String(goal.target))
@@ -301,6 +314,9 @@ export default function GoalsPage({ goals, today, focusGoalId, userId, invitatio
   const [sharedPadId, setSharedPadId] = useState<string | null>(null)
   const [sharedDetailsId, setSharedDetailsId] = useState<string | null>(null)
   const [spaceOpen, setSpaceOpen] = useState(false)
+  const [editMode, setEditMode] = useState(false)
+  const [toDelete, setToDelete] = useState<{ id: string; title: string; shared: boolean } | null>(null)
+  const openDetails = (id: string, isShared: boolean, edit: boolean) => { setEditMode(edit); if (isShared) { setSharedDetailsId(id); setSharedPadId(null) } else { setDetailsId(id); setPadId(null) } }
   const sharedPad = shared.goals.find(g => g.id === sharedPadId)
   const sharedDetails = shared.goals.find(g => g.id === sharedDetailsId)
   const [composer, setComposer] = useState(false)
@@ -315,14 +331,14 @@ export default function GoalsPage({ goals, today, focusGoalId, userId, invitatio
   const monthly = active.filter(g => g.monthly)
   const dated = active.filter(g => !g.monthly).sort((a, b) => (a.deadline ?? '9999').localeCompare(b.deadline ?? '9999'))
 
-  const card = (goal: Goal) => <button key={goal.id} type="button" className="goal-card" onClick={() => setPadId(goal.id)} aria-label={`${goal.title} : mettre à jour`}>
+  const card = (goal: Goal) => <SwipeRow key={goal.id} className="goal-swipe" onEdit={() => openDetails(goal.id, false, true)} onDelete={() => setToDelete({ id: goal.id, title: goal.title, shared: false })}><button type="button" className="goal-card" onClick={() => setPadId(goal.id)} aria-label={`${goal.title} : mettre à jour`}>
     <span className="goal-card-top">
       <span className="goal-card-title"><strong>{goal.title}</strong><small>{goal.monthly ? monthName(today) : goal.deadline ? `avant le ${shortDate(goal.deadline)}` : ''}</small></span>
       <span className="goal-card-value">{formatNumber(goalCurrent(goal, today))}<small>{sep(goal)}{formatNumber(goal.target)}{u(goal)}</small></span>
     </span>
     <GoalBar goal={goal} today={today} />
     {(goalPace(goal, today).word || focusGoalId === goal.id) && <span className="goal-card-foot"><Status goal={goal} today={today} />{focusGoalId === goal.id && <span className="goal-focus-tag">Sur Aujourd’hui</span>}</span>}
-  </button>
+  </button></SwipeRow>
 
   return <section>
     <div className="page-intro"><div><h1>Objectifs</h1></div><button type="button" className="primary-btn" onClick={() => setComposer(true)}><Plus size={18} /> Nouveau</button></div>
@@ -335,7 +351,7 @@ export default function GoalsPage({ goals, today, focusGoalId, userId, invitatio
     {dated.length > 0 && <section className="goal-section"><h2 className="goal-section-title">À atteindre</h2><div className="goal-cards">{dated.map(card)}</div></section>}
     {shared.space && <section className="goal-section">
       <div className="goal-section-head"><h2 className="goal-section-title">À deux</h2><button type="button" className="text-action" onClick={() => setSpaceOpen(true)}>{shared.members > 1 ? `${shared.members} membres` : 'Inviter'}</button></div>
-      {shared.goals.length ? <div className="goal-cards">{shared.goals.map(g => <SharedCard key={g.id} goal={g} today={today} onOpen={() => setSharedPadId(g.id)} />)}</div>
+      {shared.goals.length ? <div className="goal-cards">{shared.goals.map(g => <SwipeRow key={g.id} className="goal-swipe" onEdit={() => openDetails(g.id, true, true)} onDelete={() => setToDelete({ id: g.id, title: g.title, shared: true })}><SharedCard goal={g} today={today} onOpen={() => setSharedPadId(g.id)} /></SwipeRow>)}</div>
         : <button type="button" className="goal-empty" onClick={() => setComposer(true)}><strong>Un objectif à deux</strong><small>Choisis « À deux » en le créant.</small></button>}
     </section>}
     {shared.error && <p className="goal-error" role="alert">{shared.error} <button type="button" className="text-action" onClick={shared.clearError}>OK</button></p>}
@@ -346,13 +362,18 @@ export default function GoalsPage({ goals, today, focusGoalId, userId, invitatio
     {shared.loaded && !shared.space && userId && <button type="button" className="text-action goal-share-start" onClick={() => { void shared.createSpace().then(ok => { if (ok) setSpaceOpen(true) }) }}>Partager des objectifs avec quelqu’un</button>}
     {composer && <Composer today={today} canShare={Boolean(shared.space)} onClose={() => setComposer(false)} onCreate={goal => { onChange([...goals, goal]); setComposer(false) }}
       onCreateShared={g => { void shared.create(g).then(ok => { if (ok) setComposer(false) }) }} />}
-    {sharedPad && <NumberPad key={sharedPad.id} goal={sharedPad} today={today} onClose={() => setSharedPadId(null)} onDetails={() => { setSharedDetailsId(sharedPad.id); setSharedPadId(null) }}
+    {sharedPad && <NumberPad key={sharedPad.id} goal={sharedPad} today={today} onClose={() => setSharedPadId(null)} onDetails={() => openDetails(sharedPad.id, true, false)} onEdit={() => openDetails(sharedPad.id, true, true)}
       onSubmit={value => { void shared.add(sharedPad.id, value); setSharedPadId(null) }} />}
-    {sharedDetails && <SharedDetails key={sharedDetails.id} goal={sharedDetails} today={today} shared={shared} onClose={() => setSharedDetailsId(null)} />}
+    {sharedDetails && <SharedDetails key={sharedDetails.id} goal={sharedDetails} today={today} shared={shared} startEditing={editMode} onClose={() => setSharedDetailsId(null)} />}
+    {toDelete && <ConfirmDelete title={toDelete.title} shared={toDelete.shared} onClose={() => setToDelete(null)} onConfirm={() => {
+      if (toDelete.shared) void shared.remove(toDelete.id)
+      else { onChange(goals.filter(g => g.id !== toDelete.id)); if (focusGoalId === toDelete.id) onFocus(undefined) }
+      setToDelete(null)
+    }} />}
     {spaceOpen && shared.space && <SpaceSheet shared={shared} onClose={() => setSpaceOpen(false)} />}
-    {pad && <NumberPad key={pad.id} goal={pad} today={today} onClose={() => setPadId(null)} onDetails={() => { setDetailsId(pad.id); setPadId(null) }}
+    {pad && <NumberPad key={pad.id} goal={pad} today={today} onClose={() => setPadId(null)} onDetails={() => openDetails(pad.id, false, false)} onEdit={() => openDetails(pad.id, false, true)}
       onSubmit={value => { update({ ...pad, history: [...pad.history, { at: new Date().toISOString(), value }] }); setPadId(null) }} />}
-    {details && <GoalDetails key={details.id} goal={details} today={today} focused={focusGoalId === details.id} onClose={() => setDetailsId(null)} onChange={update}
+    {details && <GoalDetails key={details.id} goal={details} today={today} startEditing={editMode} focused={focusGoalId === details.id} onClose={() => setDetailsId(null)} onChange={update}
       onDelete={() => { onChange(goals.filter(g => g.id !== details.id)); if (focusGoalId === details.id) onFocus(undefined); setDetailsId(null) }}
       onFocus={on => onFocus(on ? details.id : undefined)} />}
   </section>

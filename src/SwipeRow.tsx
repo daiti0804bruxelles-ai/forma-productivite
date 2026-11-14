@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import type { MouseEvent, PointerEvent, ReactNode } from 'react'
-import { ArrowRight, Check, Moon, RotateCcw, Trash2 } from 'lucide-react'
+import { ArrowRight, Check, Moon, Pencil, RotateCcw, Trash2 } from 'lucide-react'
 
 const ACTION_WIDTH = 84
 
@@ -10,6 +10,7 @@ type Props = {
   onDelete?: () => void
   onPostpone?: () => void
   onExcuse?: () => void
+  onEdit?: () => void
   excused?: boolean
   completeLabel?: string
   done?: boolean
@@ -21,8 +22,8 @@ type Props = {
  * Le défilement vertical reste natif ; les éléments marqués data-no-swipe (poignée de déplacement, menu) sont ignorés.
  * Les mêmes actions restent toujours disponibles autrement (case à cocher, menu), le geste n'est qu'un raccourci.
  */
-export default function SwipeRow({ children, onComplete, onDelete, onPostpone, onExcuse, excused = false, completeLabel = 'Terminer', done = false, className = '' }: Props) {
-  const max = ((onComplete ? 1 : 0) + (onPostpone ? 1 : 0) + (onExcuse ? 1 : 0) + (onDelete ? 1 : 0)) * ACTION_WIDTH
+export default function SwipeRow({ children, onComplete, onDelete, onPostpone, onExcuse, onEdit, excused = false, completeLabel = 'Terminer', done = false, className = '' }: Props) {
+  const max = ((onComplete ? 1 : 0) + (onPostpone ? 1 : 0) + (onExcuse ? 1 : 0) + (onEdit ? 1 : 0) + (onDelete ? 1 : 0)) * ACTION_WIDTH
   const [offset, setOffset] = useState(0)
   const [dragging, setDragging] = useState(false)
   const offsetRef = useRef(0)
@@ -79,6 +80,9 @@ export default function SwipeRow({ children, onComplete, onDelete, onPostpone, o
       </button>}
       {onExcuse && <button type="button" className="swipe-excuse" tabIndex={isOpen ? 0 : -1} onClick={() => run(onExcuse)}>
         {excused ? <RotateCcw size={18} /> : <Moon size={18} />}<span>{excused ? 'Rétablir' : 'Excuser'}</span>
+      </button>}
+      {onEdit && <button type="button" className="swipe-edit" tabIndex={isOpen ? 0 : -1} onClick={() => run(onEdit)}>
+        <Pencil size={18} /><span>Modifier</span>
       </button>}
       {onDelete && <button type="button" className="swipe-delete" tabIndex={isOpen ? 0 : -1} onClick={() => run(onDelete)}>
         <Trash2 size={18} /><span>Supprimer</span>
