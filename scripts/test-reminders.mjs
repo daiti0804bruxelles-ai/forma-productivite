@@ -30,6 +30,15 @@ assert.deepEqual(keys(done, '21:30'), [])
 const sick = { ...data, restPeriods: [{ from: '2026-11-08', skillIds: ['strength', 'cardio'] }], excused: { [day]: ['h1'] } }
 r = dueReminders(sick, day, '21:00'); assert.equal(r[0].title, 'Il te reste 1 élément aujourd’hui'); assert.equal(r[0].body, 'Appeler le comptable — sinon −5 XP')
 assert.deepEqual(keys(sick, '17:50'), [], 'pas de rappel pour une activité en repos')
+// À ne pas oublier : à l'heure, puis chaque heure entre 8 h et 22 h, plus rien une fois fait.
+const memo = { ...done, memos: [{ id: 'm1', title: 'Payer le loyer', due: '2026-11-09T10:00' }] }
+const mk = (t, d = memo) => dueReminders(d, day, t).filter(x => x.dedupeKey.startsWith('memo')).map(x => x.dedupeKey)
+assert.deepEqual(mk('09:55'), [])
+r = dueReminders(memo, day, '10:00').find(x => x.important); assert.equal(r.title, '⚠️ N’oublie pas'); assert.equal(r.body, 'Payer le loyer'); assert.equal(r.memoId, 'm1')
+assert.deepEqual(mk('10:59'), ['memo:m1:2026-11-09T10:00:0']); assert.deepEqual(mk('11:00'), ['memo:m1:2026-11-09T10:00:1'])
+assert.deepEqual(mk('22:30'), [], 'pas la nuit')
+assert.deepEqual(mk('11:00', { ...memo, memos: [{ ...memo.memos[0], doneAt: '2026-11-09T10:30' }] }), [])
+assert.deepEqual(mk('11:00', { ...memo, memos: [{ ...memo.memos[0], snoozedUntil: '2026-11-09T12:00' }] }), [], 'reporté')
 // Préférences : tout coupé.
 assert.deepEqual(keys({ ...data, notifications: { beforeEvent: false, evening: false, morning: false } }, '21:00'), [])
 // Heure locale selon le fuseau.

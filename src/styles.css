@@ -737,3 +737,19 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 .goal-confirm h2 { font-size: 1.15rem; font-weight: 700; }
 .goal-confirm p { color: var(--text-2); font-size: .9rem; }
 .danger-btn { display: inline-flex; align-items: center; gap: 6px; padding: 11px 18px; border: 0; border-radius: 12px; background: var(--danger); color: #fff; font: inherit; font-weight: 600; }
+
+/* À ne pas oublier */
+.memo-due { display: grid; gap: 10px; margin-bottom: 18px; }
+.memo-alert { display: grid; gap: 4px; padding: 18px; border-radius: 20px; background: var(--danger); color: #fff; box-shadow: 0 10px 30px color-mix(in srgb, var(--danger) 35%, transparent); }
+.memo-alert-kicker { font-size: .72rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; opacity: .85; }
+.memo-alert strong { font-size: 1.3rem; font-weight: 700; letter-spacing: -.01em; line-height: 1.25; }
+.memo-alert small { opacity: .85; font-size: .82rem; }
+.memo-alert-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.memo-done, .memo-later { display: inline-flex; align-items: center; padding: 10px 16px; border: 0; border-radius: 12px; font: inherit; font-weight: 600; }
+.memo-done { background: #fff; color: var(--danger); }
+.memo-later { background: rgba(255,255,255,.18); color: #fff; }
+.memo-row { display: grid; gap: 2px; width: 100%; padding: 14px 16px; border: 0; background: transparent; color: var(--text); text-align: left; font: inherit; }
+.memo-row small { color: var(--text-2); font-size: .8rem; }
+.memo-row.is-due small { color: var(--danger); font-weight: 600; }
+.memo-composer { display: grid; gap: 12px; }
+.memo-date { padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--text); font: inherit; font-size: .9rem; }

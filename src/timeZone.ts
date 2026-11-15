@@ -39,3 +39,11 @@ export const SUGGESTED_ZONES: readonly { zone: string; label: string }[] = [
   { zone: 'Asia/Dubai', label: 'Dubaï' },
   { zone: 'Europe/Brussels', label: 'Bruxelles' },
 ]
+
+/** Date et heure locales « AAAA-MM-JJTHH:MM » selon le fuseau de référence (pour les rappels). */
+export function currentStamp(date = new Date()) {
+  const opts: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23', ...(referenceZone ? { timeZone: referenceZone } : {}) }
+  const parts = new Intl.DateTimeFormat('en-GB', opts).formatToParts(date)
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? '00'
+  return `${get('year')}-${get('month')}-${get('day')}T${get('hour')}:${get('minute')}`
+}
