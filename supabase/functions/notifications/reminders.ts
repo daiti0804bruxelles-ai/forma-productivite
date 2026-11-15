@@ -14,8 +14,9 @@ export type FormaData = {
   completedHabits?: Record<string, string[]>; completedEvents?: Record<string, string[]>
   timeZone?: string; notifications?: NotificationPrefs; goals?: GoalLike[]
   restPeriods?: { from: string; to?: string; skillIds: string[] }[]; excused?: Record<string, string[]>
+  memos?: { id: string; title: string; due: string; snoozedUntil?: string; doneAt?: string }[]
 }
-export type Reminder = { dedupeKey: string; title: string; body: string; url: string; tag: string }
+export type Reminder = { dedupeKey: string; title: string; body: string; url: string; tag: string; important?: boolean; memoId?: string }
 
 export const DEFAULT_PREFS: Required<NotificationPrefs> = { beforeEvent: true, evening: true, morning: true, leadMinutes: 15, eveningTime: '21:00', morningTime: '08:00' }
 
@@ -91,6 +92,24 @@ export function dueReminders(data: FormaData, day: string, time: string): Remind
       body: [parts.join(' · '), next ? `${next.title} à ${next.time}` : ''].filter(Boolean).join(' — '),
     })
   }
+  // 0. À ne pas oublier : à l'heure prévue, puis toutes les heures (8 h – 22 h) jusqu'à « Fait ».
+  const abs = (stamp: string) => { const [d, t] = stamp.split('T'); const [y, mo, da] = d.split('-').map(Number); return Date.UTC(y, mo - 1, da) / 60000 + minutes(t) }
+  const nowAbs = abs(`${day}T${time}`)
+  for (const m of data.memos ?? []) {
+    if (m.doneAt) continue
+    const trigger = m.snoozedUntil && m.snoozedUntil > m.due ? m.snoozedUntil : m.due
+    const elapsed = nowAbs - abs(trigger)
+    if (elapsed < 0) continue
+    const n = Math.floor(elapsed / 60)
+    if (n > 0 && (now < 8 * 60 || now >= 22 * 60)) continue
+    if (n > 24 * 14) continue // au-delà de deux semaines, on arrête d'insister
+    out.push({
+      dedupeKey: `memo:${m.id}:${trigger}:${n}`, tag: `memo-${m.id}`, url: '/', important: true, memoId: m.id,
+      title: n === 0 ? '⚠️ N’oublie pas' : '⚠️ Toujours pas fait',
+      body: m.title,
+    })
+  }
+
   // 4. Objectifs : rappel de mise à jour choisi par objectif (9h), et note de fin de mois des caps de vie (20h).
   const goals = (data.goals ?? []).filter(g => !g.completedOn)
   if (now >= 9 * 60 && now < 12 * 60) for (const g of goals) {

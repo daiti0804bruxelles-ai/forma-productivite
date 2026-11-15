@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, MoreHorizontal, GripVertical, ChevronDown, Plus, Repeat2, Settings, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo, Palette, Globe, History, Bell } from 'lucide-react'
+import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, MoreHorizontal, GripVertical, ChevronDown, Plus, Repeat2, Settings, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo, Palette, Globe, History, Bell, BellRing } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
@@ -21,7 +21,7 @@ import { SKILL_GROUPS } from './skillsCatalog'
 import { rollOverTasks as advanceDay, eventOccursOn } from './xpSchedule'
 import { useCloudSync } from './useCloudSync'
 import { createBackup, ensureWeeklyBackup, listBackups, readBackupData, type BackupInfo } from './backups'
-import { currentDayKey, isValidTimeZone, setReferenceTimeZone } from './timeZone'
+import { currentDayKey, currentStamp, isValidTimeZone, setReferenceTimeZone } from './timeZone'
 import TimeZoneSettings from './TimeZoneSettings'
 import SyncIndicator from './SyncIndicator'
 import HabitStatsView from './HabitStatsView'
@@ -29,6 +29,8 @@ import NotificationSettings from './NotificationSettings'
 import { isNotificationPrefs, type NotificationPrefs } from './push'
 import type { Session } from '@supabase/supabase-js'
 import SwipeRow from './SwipeRow'
+import MemosPage, { DueMemos } from './MemosPage'
+import { complete as completeMemo, isMemo, SNOOZES, type Memo } from './memos'
 import RestMode, { restSkillsLabel } from './RestMode'
 import { activeRests, isPaused, isExcused, isRestPeriod, type Excused, type RestPeriod } from './rest'
 import StreakFlame from './StreakFlame'
@@ -36,13 +38,13 @@ import { useSortable, type SortGroups } from './useSortable'
 import QuickAdd, { type QuickAddPayload, type QuickAddType } from './QuickAdd'
 import AppearanceSettings from './AppearanceSettings'
 import { isAppearance, readCachedAppearance, useAppearance, type Appearance } from './theme'
-type Page = 'dashboard' | 'habits' | 'tasks' | 'calendar' | 'goals' | 'skills'
+type Page = 'dashboard' | 'habits' | 'tasks' | 'calendar' | 'goals' | 'skills' | 'memos'
 type Period = 'Matin' | 'Après-midi' | 'Soir'
 type Habit = { id:string; title:string; period:Period; category:string; skillIds?:SkillId[]; createdOn?:string; difficulty?:Difficulty; days?:number[] }
 type Subtask = { id:string; title:string; done:boolean }
 type Task = { id:string; goalStep?:{goalId:string;stepId:string}; subtasks?:Subtask[]; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[]; dueDate?:string; createdOn?:string; difficulty?:Difficulty }
 type Event = { id:string; title:string; date:string; time:string; endTime?:string; category:string; repeatDays?:number[]; skillIds?:SkillId[]; difficulty?:Difficulty; createdOn?:string }
-type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string; notifications?:NotificationPrefs; focusGoalId?:string; restPeriods?:RestPeriod[]; excused?:Excused } & GameState
+type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string; notifications?:NotificationPrefs; focusGoalId?:string; restPeriods?:RestPeriod[]; excused?:Excused; memos?:Memo[] } & GameState
 const todayKey = () => currentDayKey()
 const weekdayOptions=[{day:1,label:'Lun'},{day:2,label:'Mar'},{day:3,label:'Mer'},{day:4,label:'Jeu'},{day:5,label:'Ven'},{day:6,label:'Sam'},{day:0,label:'Dim'}]
 
@@ -91,6 +93,7 @@ function isAppData(value:unknown):value is AppData{
  if(d.frozenDays!==undefined&&(!Array.isArray(d.frozenDays)||d.frozenDays.length>5000||!d.frozenDays.every(validDate)))return false
  if(d.restPeriods!==undefined&&(!Array.isArray(d.restPeriods)||d.restPeriods.length>500||!d.restPeriods.every(isRestPeriod)))return false
  if(d.excused!==undefined&&!isExcused(d.excused))return false
+ if(d.memos!==undefined&&(!Array.isArray(d.memos)||d.memos.length>2000||!d.memos.every(isMemo)))return false
  if(d.boostUntil!==undefined&&(typeof d.boostUntil!=='string'||Number.isNaN(Date.parse(d.boostUntil))))return false
  if(d.legacyXpLedger!==undefined&&!isValidXpLedger(d.legacyXpLedger))return false
  const validDays=(days:unknown)=>days===undefined||(Array.isArray(days)&&days.length>=1&&days.length<=7&&days.every(day=>Number.isInteger(day)&&day>=0&&day<=6)&&new Set(days).size===days.length)
@@ -98,7 +101,7 @@ function isAppData(value:unknown):value is AppData{
  if(!d.tasks.every(t=>t.difficulty===undefined||isDifficulty(t.difficulty)))return false
  return Object.entries(d.completedHabits).every(([day,ids])=>validDate(day)&&Array.isArray(ids)&&ids.every(validText))
 }
-const nav:{id:Page;label:string;icon:LucideIcon}[]=[{id:'dashboard',label:'Aujourd’hui',icon:Sun},{id:'habits',label:'Mes habitudes',icon:Repeat2},{id:'tasks',label:'Mes tâches',icon:ListTodo},{id:'goals',label:'Mes objectifs',icon:CircleCheck},{id:'skills',label:'Compétences',icon:Sparkles},{id:'calendar',label:'Calendrier',icon:CalendarDays}]
+const nav:{id:Page;label:string;icon:LucideIcon}[]=[{id:'dashboard',label:'Aujourd’hui',icon:Sun},{id:'habits',label:'Mes habitudes',icon:Repeat2},{id:'tasks',label:'Mes tâches',icon:ListTodo},{id:'goals',label:'Mes objectifs',icon:CircleCheck},{id:'memos',label:'À ne pas oublier',icon:BellRing},{id:'skills',label:'Compétences',icon:Sparkles},{id:'calendar',label:'Calendrier',icon:CalendarDays}]
 const bottomTabs:{id:Page;short:string;icon:LucideIcon}[]=[{id:'dashboard',short:'Aujourd’hui',icon:Sun},{id:'habits',short:'Habitudes',icon:Repeat2},{id:'tasks',short:'Tâches',icon:ListTodo},{id:'calendar',short:'Calendrier',icon:CalendarDays}]
 const categoryClass:Record<string,string>={Personnel:'lavender',Travail:'blue',Sport:'peach',Apprentissage:'mint'}
 const periods:{name:Period;icon:LucideIcon;time:string}[]=[{name:'Matin',icon:Sunrise,time:'06:00 — 12:00'},{name:'Après-midi',icon:Sun,time:'12:00 — 18:00'},{name:'Soir',icon:Moon,time:'18:00 — 00:00'}]
@@ -425,6 +428,17 @@ useEffect(() => {
  const [showDone,setShowDone]=useState(false)
  const [leaving,setLeaving]=useState<string[]>([])
  const [clock,setClock]=useState(()=>new Date())
+ const nowStamp=currentStamp(clock)
+ const updateMemo=(m:Memo)=>setData(prev=>({...prev,memos:(prev.memos||[]).map(x=>x.id===m.id?m:x)}))
+ // Action depuis une notification « À ne pas oublier » : ?memo=ID&do=done|snooze
+ useEffect(()=>{
+  if(dataLoading)return
+  const q=new URLSearchParams(window.location.search);const memoId=q.get('memo');if(!memoId)return
+  const action=q.get('do');const now=currentStamp()
+  if(action==='done')setData(prev=>({...prev,memos:(prev.memos||[]).map(m=>m.id===memoId?completeMemo(m,now):m)}))
+  else if(action==='snooze')setData(prev=>({...prev,memos:(prev.memos||[]).map(m=>m.id===memoId?{...m,snoozedUntil:SNOOZES[0].at(now)!}:m)}))
+  setPage('dashboard');window.history.replaceState(null,'',window.location.pathname)
+ },[dataLoading])
  useEffect(()=>{const timer=window.setInterval(()=>setClock(new Date()),60000);return()=>window.clearInterval(timer)},[])
  const [cachedAppearance]=useState(readCachedAppearance)
  const appearance=dataLoading?cachedAppearance:(data.appearance??cachedAppearance)
@@ -570,12 +584,14 @@ useEffect(() => {
    </header>
    <main className="content">
     {page==='skills'&&<SkillsPage ledger={data.xpLedger}/>}
+    {page==='memos'&&<MemosPage memos={data.memos||[]} now={nowStamp} onChange={memos=>setData(prev=>({...prev,memos}))}/>}
 
     {page==='dashboard'&&<div className="today">
      <section className="today-head">
       <div><p className="today-date">{frDate(makeDate(todayKey()),{weekday:'long',day:'numeric',month:'long'})}</p><h1>Aujourd’hui</h1></div>
       <StreakFlame streak={activityStreak} activeToday={activityDays.has(todayKey())}/>
      </section>
+     <DueMemos memos={data.memos||[]} now={nowStamp} onChange={updateMemo}/>
      {(dayTotal>0||restsToday.length>0)&&<div className="day-progress">
       {dayTotal>0&&<div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>}{(boostActive(data)||data.protectedDays?.includes(todayKey())||restsToday.length>0)&&<div className="game-status">{restsToday.length>0&&<button type="button" className="game-chip" onClick={()=>setRestOpen(true)}>Mode repos · {restSkillsLabel([...new Set(restsToday.flatMap(r=>r.skillIds))])}</button>}{boostActive(data)&&<span>Boost XP ×2 jusqu’à {new Date(data.boostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{data.protectedDays?.includes(todayKey())&&<span>Journée protégée par un joker</span>}</div>}
       {dayTotal>0&&<div className="bar" role="progressbar" aria-label="Progression du jour" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dayProgress}><div style={{width:`${dayProgress}%`}}/></div>}
@@ -699,11 +715,11 @@ useEffect(() => {
 
   <nav className="bottom-nav" aria-label="Navigation principale">
    {bottomTabs.map(item=><button key={item.id} type="button" className={page===item.id?'selected':''} aria-current={page===item.id?'page':undefined} onClick={()=>go(item.id)}><item.icon size={22} strokeWidth={page===item.id?2.2:1.8}/><span>{item.short}</span></button>)}
-   <button type="button" className={mobileMoreOpen||page==='goals'||page==='skills'?'selected':''} onClick={()=>setMobileMoreOpen(v=>!v)} aria-expanded={mobileMoreOpen} aria-label="Plus de pages"><MoreHorizontal size={22}/><span>Plus</span></button>
+   <button type="button" className={mobileMoreOpen||page==='goals'||page==='skills'||page==='memos'?'selected':''} onClick={()=>setMobileMoreOpen(v=>!v)} aria-expanded={mobileMoreOpen} aria-label="Plus de pages"><MoreHorizontal size={22}/><span>Plus</span></button>
   </nav>
   {mobileMoreOpen&&<div className="sheet-backdrop" onMouseDown={()=>setMobileMoreOpen(false)}><div className="sheet more-sheet" role="menu" aria-label="Autres pages" onMouseDown={e=>e.stopPropagation()}>
    <div className="sheet-grabber" aria-hidden="true"/>
-   {nav.filter(item=>item.id==='goals'||item.id==='skills').map(item=><button type="button" role="menuitem" key={item.id} className="menu-item" onClick={()=>go(item.id)}><item.icon size={19}/> {item.label}</button>)}
+   {nav.filter(item=>item.id==='goals'||item.id==='memos'||item.id==='skills').map(item=><button type="button" role="menuitem" key={item.id} className="menu-item" onClick={()=>go(item.id)}><item.icon size={19}/> {item.label}</button>)}
   </div></div>}
 
   {quickAdd&&<QuickAdd initialType={quickAdd} today={todayKey()} tomorrow={tomorrowKey} categories={categories} onClose={()=>setQuickAdd(null)} onSubmit={handleQuickAdd} onMoreOptions={quickAddMore}/>}
