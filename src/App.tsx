@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, MoreHorizontal, GripVertical, ChevronDown, Plus, Repeat2, Settings, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo, Palette, Globe, History, Bell, BellRing } from 'lucide-react'
+import { ArrowRight, CalendarDays, Check, ChevronLeft, ChevronRight, CircleCheck, MoreHorizontal, GripVertical, ChevronDown, Plus, Repeat2, Settings, Sparkles, Trash2, X, Pencil, Download, Upload, ShieldCheck, Sunrise, Sun, Moon, ListTodo, Palette, Globe, History, Bell, BellRing, Smartphone } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
@@ -29,6 +29,7 @@ import NotificationSettings from './NotificationSettings'
 import { isNotificationPrefs, type NotificationPrefs } from './push'
 import type { Session } from '@supabase/supabase-js'
 import SwipeRow from './SwipeRow'
+import WidgetSettings from './WidgetSettings'
 import MemosPage, { DueMemos } from './MemosPage'
 import { complete as completeMemo, isMemo, SNOOZES, type Memo } from './memos'
 import RestMode, { restSkillsLabel } from './RestMode'
@@ -44,7 +45,7 @@ type Habit = { id:string; title:string; period:Period; category:string; skillIds
 type Subtask = { id:string; title:string; done:boolean }
 type Task = { id:string; goalStep?:{goalId:string;stepId:string}; subtasks?:Subtask[]; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[]; dueDate?:string; createdOn?:string; difficulty?:Difficulty }
 type Event = { id:string; title:string; date:string; time:string; endTime?:string; category:string; repeatDays?:number[]; skillIds?:SkillId[]; difficulty?:Difficulty; createdOn?:string }
-type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string; notifications?:NotificationPrefs; focusGoalId?:string; restPeriods?:RestPeriod[]; excused?:Excused; memos?:Memo[] } & GameState
+type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string; notifications?:NotificationPrefs; focusGoalId?:string; restPeriods?:RestPeriod[]; excused?:Excused; memos?:Memo[]; widgetKey?:string } & GameState
 const todayKey = () => currentDayKey()
 const weekdayOptions=[{day:1,label:'Lun'},{day:2,label:'Mar'},{day:3,label:'Mer'},{day:4,label:'Jeu'},{day:5,label:'Ven'},{day:6,label:'Sam'},{day:0,label:'Dim'}]
 
@@ -93,6 +94,7 @@ function isAppData(value:unknown):value is AppData{
  if(d.frozenDays!==undefined&&(!Array.isArray(d.frozenDays)||d.frozenDays.length>5000||!d.frozenDays.every(validDate)))return false
  if(d.restPeriods!==undefined&&(!Array.isArray(d.restPeriods)||d.restPeriods.length>500||!d.restPeriods.every(isRestPeriod)))return false
  if(d.excused!==undefined&&!isExcused(d.excused))return false
+ if(d.widgetKey!==undefined&&(typeof d.widgetKey!=='string'||!/^[a-f0-9]{40}$/.test(d.widgetKey)))return false
  if(d.memos!==undefined&&(!Array.isArray(d.memos)||d.memos.length>2000||!d.memos.every(isMemo)))return false
  if(d.boostUntil!==undefined&&(typeof d.boostUntil!=='string'||Number.isNaN(Date.parse(d.boostUntil))))return false
  if(d.legacyXpLedger!==undefined&&!isValidXpLedger(d.legacyXpLedger))return false
@@ -364,6 +366,7 @@ useEffect(() => {
  const [statsHabitId,setStatsHabitId]=useState<string|null>(null)
  const [notificationsOpen,setNotificationsOpen]=useState(false)
  const [restOpen,setRestOpen]=useState(false)
+ const [widgetOpen,setWidgetOpen]=useState(false)
  const openBackup=()=>{setBackupError('');setRestorePreview(null);setBackupOpen(true);setSettingsOpen(false);setAutoBackups(null);if(session?.user?.id)listBackups(session.user.id).then(setAutoBackups).catch(()=>setAutoBackups([]))}
  const previewAutoBackup=async(backupId:string)=>{
   if(!session?.user?.id)return
@@ -444,7 +447,7 @@ useEffect(() => {
  const appearance=dataLoading?cachedAppearance:(data.appearance??cachedAppearance)
  useAppearance(appearance)
  useEffect(()=>{if(!xpFlash)return;const timer=window.setTimeout(()=>setXpFlash(null),1600);return()=>window.clearTimeout(timer)},[xpFlash])
- const anyOverlayOpen=Boolean(shopOpen||notificationsOpen||restOpen||statsHabitId||modal||pendingDelete||backupOpen||appearanceOpen||timeZoneOpen||quickAdd||mobileMoreOpen)
+ const anyOverlayOpen=Boolean(shopOpen||notificationsOpen||restOpen||widgetOpen||statsHabitId||modal||pendingDelete||backupOpen||appearanceOpen||timeZoneOpen||quickAdd||mobileMoreOpen)
  useEffect(()=>{
   if(anyOverlayOpen)return
   const onKey=(e:KeyboardEvent)=>{
@@ -576,6 +579,7 @@ useEffect(() => {
        <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setAppearanceOpen(true)}}><Palette size={17}/> Apparence</button>
        <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setNotificationsOpen(true)}}><Bell size={17}/> Notifications</button>
        <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setRestOpen(true)}}><Moon size={17}/> Mode repos</button>
+       <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setWidgetOpen(true)}}><Smartphone size={17}/> Widget iPhone</button>
        <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setTimeZoneOpen(true)}}><Globe size={17}/> Fuseau horaire</button>
        <button type="button" role="menuitem" className="menu-item" onClick={openBackup}><Download size={17}/> Sauvegarde et restauration</button>
       </div>}
@@ -724,6 +728,7 @@ useEffect(() => {
 
   {quickAdd&&<QuickAdd initialType={quickAdd} today={todayKey()} tomorrow={tomorrowKey} categories={categories} onClose={()=>setQuickAdd(null)} onSubmit={handleQuickAdd} onMoreOptions={quickAddMore}/>}
   {statsHabitId&&(()=>{const h=data.habits.find(x=>x.id===statsHabitId);return h?<Modal title={h.title} onClose={()=>setStatsHabitId(null)}><HabitStatsView habit={h} completed={data.completedHabits} today={todayKey()} ledger={data.xpLedger}/><div className="form-actions"><button type="button" className="secondary-btn" onClick={()=>{setStatsHabitId(null);openEdit('habit',h)}}><Pencil size={16}/> Modifier</button></div></Modal>:null})()}
+  {widgetOpen&&<Modal title="Widget iPhone" onClose={()=>setWidgetOpen(false)}><WidgetSettings widgetKey={data.widgetKey} onKey={key=>setData(prev=>({...prev,widgetKey:key}))}/></Modal>}
   {restOpen&&<Modal title="Mode repos" onClose={()=>setRestOpen(false)}><RestMode periods={data.restPeriods||[]} today={todayKey()} newId={id} onChange={next=>setData(prev=>({...prev,restPeriods:next}))}/></Modal>}
   {notificationsOpen&&session?.user?.id&&<Modal title="Notifications" onClose={()=>setNotificationsOpen(false)}><NotificationSettings userId={session.user.id} prefs={data.notifications} onChange={next=>setData(prev=>({...prev,notifications:next}))}/></Modal>}
   {shopOpen&&<Modal title="Boutique" onClose={()=>setShopOpen(false)}><Shop state={data} today={todayKey()} onChange={next=>setData(prev=>({...prev,...next}))}/></Modal>}

@@ -753,3 +753,8 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 .memo-row.is-due small { color: var(--danger); font-weight: 600; }
 .memo-composer { display: grid; gap: 12px; }
 .memo-date { padding: 8px 12px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--text); font: inherit; font-size: .9rem; }
+
+/* Widget iPhone */
+.widget-settings { display: grid; gap: 14px; }
+.widget-steps { display: grid; gap: 8px; margin: 0; padding-left: 20px; color: var(--text); font-size: .92rem; line-height: 1.4; }
+.widget-reset { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
