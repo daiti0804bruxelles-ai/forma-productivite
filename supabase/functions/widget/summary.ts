@@ -9,13 +9,14 @@ type Data = {
   completedHabits?: Record<string, string[]>; completedEvents?: Record<string, string[]>
   activityDays?: string[]; frozenDays?: string[]
   restPeriods?: { from: string; to?: string; skillIds: string[] }[]; excused?: Record<string, string[]>
-  memos?: { id: string; title: string; due: string; snoozedUntil?: string; doneAt?: string }[]
+  memos?: { id: string; title: string; due?: string; when?: string; snoozedUntil?: string; doneAt?: string }[]
   goals?: { id: string; title: string; mode: 'add' | 'value'; unit?: string; start: number; target: number; monthly?: boolean; history: { at: string; value: number }[]; completedOn?: string }[]
   focusGoalId?: string
 }
 export type WidgetSummary = {
   day: string; streak: number; activeToday: boolean; done: number; total: number
   memo?: { title: string; when: string; overdue: boolean; more: number }
+  pending: { count: number; first?: string; when?: string }
   goal?: { title: string; current: number; target: number; unit?: string; progress: number; monthly: boolean }
 }
 
@@ -42,7 +43,9 @@ export function summarize(data: Data, day: string, time: string): WidgetSummary 
   let d = streakDays.has(day) ? day : prev(day), streak = 0
   while (streakDays.has(d) && streak < 20000) { streak++; d = prev(d) }
 
-  const open = (data.memos ?? []).filter(m => !m.doneAt).map(m => ({ ...m, trigger: m.snoozedUntil && m.snoozedUntil > m.due ? m.snoozedUntil : m.due })).sort((a, b) => a.trigger.localeCompare(b.trigger))
+  const waiting = (data.memos ?? []).filter(m => !m.doneAt && !m.due)
+  const pending = { count: waiting.length, first: waiting[0]?.title, when: waiting[0]?.when }
+  const open = (data.memos ?? []).filter(m => !m.doneAt && m.due).map(m => ({ ...m, trigger: m.snoozedUntil && m.snoozedUntil > m.due! ? m.snoozedUntil : m.due! })).sort((a, b) => a.trigger.localeCompare(b.trigger))
   const first = open[0]
   const memo = first ? { title: first.title, when: first.trigger, overdue: first.trigger <= now, more: open.filter(m => m.trigger <= now).length - (first.trigger <= now ? 1 : 0) } : undefined
 
@@ -55,5 +58,5 @@ export function summarize(data: Data, day: string, time: string): WidgetSummary 
     const progress = g.mode === 'add' ? (g.target > 0 ? current / g.target : 0) : (g.start === g.target ? 0 : (current - g.start) / (g.target - g.start))
     goal = { title: g.title, current: Math.round(current * 100) / 100, target: g.target, unit: g.unit, progress: Math.max(0, Math.min(1, progress)), monthly: Boolean(g.monthly) }
   }
-  return { day, streak, activeToday: active.has(day), done, total, memo, goal }
+  return { day, streak, activeToday: active.has(day), done, total, memo, pending, goal }
 }

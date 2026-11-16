@@ -39,6 +39,11 @@ assert.deepEqual(mk('10:59'), ['memo:m1:2026-11-09T10:00:0']); assert.deepEqual(
 assert.deepEqual(mk('22:30'), [], 'pas la nuit')
 assert.deepEqual(mk('11:00', { ...memo, memos: [{ ...memo.memos[0], doneAt: '2026-11-09T10:30' }] }), [])
 assert.deepEqual(mk('11:00', { ...memo, memos: [{ ...memo.memos[0], snoozedUntil: '2026-11-09T12:00' }] }), [], 'reporté')
+// Notes en attente : rappel à 20 h, et compte dans le résumé du matin ; jamais d'insistance horaire.
+const notes = { ...done, memos: [{ id: 'n1', title: 'Payer Doola', when: 'au prochain withdraw' }] }
+assert.deepEqual(dueReminders(notes, day, '19:55').filter(x => x.important), [])
+r = dueReminders(notes, day, '20:00').find(x => x.dedupeKey === 'pending:2026-11-09'); assert.equal(r.title, '⚠️ 1 chose à ne pas oublier'); assert.equal(r.body, 'Payer Doola (au prochain withdraw)')
+assert.match(dueReminders(notes, day, '08:05').find(x => x.tag === 'morning').body, /1 à ne pas oublier/)
 // Préférences : tout coupé.
 assert.deepEqual(keys({ ...data, notifications: { beforeEvent: false, evening: false, morning: false } }, '21:00'), [])
 // Heure locale selon le fuseau.

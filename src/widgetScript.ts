@@ -69,6 +69,7 @@ if (s.error) {
   text(left, s.total ? s.done + ' sur ' + s.total : 'Rien aujourd’hui', narrow ? 15 : 13, C.text, 'semi')
   left.addSpacer(5); bar(left, s.total ? s.done / s.total : 0, width, C.accent)
   if (narrow && s.memo && s.memo.overdue) { left.addSpacer(10); text(left, '⚠︎ ' + s.memo.title, 11, C.danger, 'semi') }
+  else if (narrow && s.pending && s.pending.count) { left.addSpacer(10); text(left, '⚠︎ ' + s.pending.count + ' en attente', 11, C.danger, 'semi') }
   if (!narrow) {
     row.addSpacer()
     const right = row.addStack(); right.layoutVertically(); right.size = new Size(140, 0)
@@ -76,6 +77,11 @@ if (s.error) {
       text(right, s.memo.overdue ? 'N’OUBLIE PAS' : 'À NE PAS OUBLIER', 9, s.memo.overdue ? C.danger : C.sub, 'semi')
       right.addSpacer(2); text(right, s.memo.title, 13, s.memo.overdue ? C.danger : C.text, 'semi')
       text(right, when(s.memo.when) + (s.memo.more ? ' · +' + s.memo.more : ''), 10, C.sub)
+      right.addSpacer(8)
+    } else if (s.pending && s.pending.count) {
+      text(right, 'EN ATTENTE · ' + s.pending.count, 9, C.danger, 'semi')
+      right.addSpacer(2); text(right, s.pending.first, 13, C.text, 'semi')
+      if (s.pending.when) text(right, s.pending.when, 10, C.sub)
       right.addSpacer(8)
     }
     if (s.goal) {

@@ -14,7 +14,7 @@ export type FormaData = {
   completedHabits?: Record<string, string[]>; completedEvents?: Record<string, string[]>
   timeZone?: string; notifications?: NotificationPrefs; goals?: GoalLike[]
   restPeriods?: { from: string; to?: string; skillIds: string[] }[]; excused?: Record<string, string[]>
-  memos?: { id: string; title: string; due: string; snoozedUntil?: string; doneAt?: string }[]
+  memos?: { id: string; title: string; due?: string; when?: string; snoozedUntil?: string; doneAt?: string }[]
 }
 export type Reminder = { dedupeKey: string; title: string; body: string; url: string; tag: string; important?: boolean; memoId?: string }
 
@@ -48,6 +48,14 @@ export function dueReminders(data: FormaData, day: string, time: string): Remind
   const doneHabits = data.completedHabits?.[day] ?? []
   const habitsToday = (data.habits ?? []).filter(h => (!h.days?.length || h.days.includes(weekday(day))) && (!h.createdOn || h.createdOn <= day))
   const tasksToday = (data.tasks ?? []).filter(t => t.date <= day)
+
+  const pending = (data.memos ?? []).filter(m => !m.doneAt && !m.due)
+  // 0 bis. Notes en attente (sans date) : rappel à 20 h tant qu'il en reste.
+  if (pending.length && now >= 20 * 60) out.push({
+    dedupeKey: `pending:${day}`, tag: 'pending', url: '/', important: true,
+    title: `⚠️ ${pending.length} chose${pending.length > 1 ? 's' : ''} à ne pas oublier`,
+    body: pending.slice(0, 3).map(m => m.when ? `${m.title} (${m.when})` : m.title).join(' · ') + (pending.length > 3 ? '…' : ''),
+  })
 
   // 1. Avant une activité (fenêtre : de « lead » minutes avant jusqu'au début).
   if (prefs.beforeEvent) for (const e of events) {
@@ -84,6 +92,7 @@ export function dueReminders(data: FormaData, day: string, time: string): Remind
     const parts = [
       tasksToday.filter(t => !t.done).length ? plural(tasksToday.filter(t => !t.done).length, 'tâche') : '',
       habitsToday.length ? plural(habitsToday.length, 'habitude') : '',
+      pending.length ? `${pending.length} à ne pas oublier` : '',
     ].filter(Boolean)
     const next = events.find(e => minutes(e.time) >= now)
     if (parts.length || next) out.push({
@@ -96,7 +105,7 @@ export function dueReminders(data: FormaData, day: string, time: string): Remind
   const abs = (stamp: string) => { const [d, t] = stamp.split('T'); const [y, mo, da] = d.split('-').map(Number); return Date.UTC(y, mo - 1, da) / 60000 + minutes(t) }
   const nowAbs = abs(`${day}T${time}`)
   for (const m of data.memos ?? []) {
-    if (m.doneAt) continue
+    if (m.doneAt || !m.due) continue
     const trigger = m.snoozedUntil && m.snoozedUntil > m.due ? m.snoozedUntil : m.due
     const elapsed = nowAbs - abs(trigger)
     if (elapsed < 0) continue

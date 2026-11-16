@@ -30,7 +30,7 @@ import { isNotificationPrefs, type NotificationPrefs } from './push'
 import type { Session } from '@supabase/supabase-js'
 import SwipeRow from './SwipeRow'
 import WidgetSettings from './WidgetSettings'
-import MemosPage, { DueMemos } from './MemosPage'
+import MemosPage, { DueMemos, PendingMemos } from './MemosPage'
 import { complete as completeMemo, isMemo, SNOOZES, type Memo } from './memos'
 import RestMode, { restSkillsLabel } from './RestMode'
 import { activeRests, isPaused, isExcused, isRestPeriod, type Excused, type RestPeriod } from './rest'
@@ -596,6 +596,7 @@ useEffect(() => {
       <StreakFlame streak={activityStreak} activeToday={activityDays.has(todayKey())}/>
      </section>
      <DueMemos memos={data.memos||[]} now={nowStamp} onChange={updateMemo}/>
+     <PendingMemos memos={data.memos||[]} now={nowStamp} onChange={updateMemo} onAdd={m=>setData(prev=>({...prev,memos:[...(prev.memos||[]),m]}))} onOpen={()=>go('memos')}/>
      {(dayTotal>0||restsToday.length>0)&&<div className="day-progress">
       {dayTotal>0&&<div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>}{(boostActive(data)||data.protectedDays?.includes(todayKey())||restsToday.length>0)&&<div className="game-status">{restsToday.length>0&&<button type="button" className="game-chip" onClick={()=>setRestOpen(true)}>Mode repos · {restSkillsLabel([...new Set(restsToday.flatMap(r=>r.skillIds))])}</button>}{boostActive(data)&&<span>Boost XP ×2 jusqu’à {new Date(data.boostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{data.protectedDays?.includes(todayKey())&&<span>Journée protégée par un joker</span>}</div>}
       {dayTotal>0&&<div className="bar" role="progressbar" aria-label="Progression du jour" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dayProgress}><div style={{width:`${dayProgress}%`}}/></div>}

@@ -758,3 +758,12 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 .widget-settings { display: grid; gap: 14px; }
 .widget-steps { display: grid; gap: 8px; margin: 0; padding-left: 20px; color: var(--text); font-size: .92rem; line-height: 1.4; }
 .widget-reset { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+
+/* En attente (notes sans date) */
+.memo-pending { margin-bottom: 4px; }
+.memo-capture { display: flex; align-items: center; gap: 6px; padding: 4px 8px 4px 16px; }
+.memo-capture input { flex: 1; min-width: 0; padding: 12px 0; border: 0; background: transparent; color: var(--text); font: inherit; outline: none; }
+.memo-capture input::placeholder { color: var(--text-2); }
+.memo-open { border: 0; background: transparent; color: var(--text); text-align: left; font: inherit; padding: 0; }
+.memo-more { display: block; padding: 12px 16px; }
+.memo-when { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: transparent; color: var(--text); font: inherit; }
