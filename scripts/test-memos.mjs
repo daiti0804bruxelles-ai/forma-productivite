@@ -16,4 +16,10 @@ assert.equal(later.snoozedUntil, '2026-11-15T16:30'); assert.equal(M.isDue(later
 assert.equal(M.SNOOZES[1].at('2026-11-15T21:00'), null, 'plus de « ce soir » après 20 h')
 assert.equal(M.whenLabel('2026-11-16T09:00', now), 'Demain 09:00')
 assert.ok(M.isMemo(rent) && !M.isMemo({ ...rent, due: '2026-10-01' }))
+assert.deepEqual(M.parseCapture('Payer Doola au prochain withdraw'), { title: 'Payer Doola', when: 'au prochain withdraw' })
+assert.deepEqual(M.parseCapture('Rappeler maman quand je suis dehors'), { title: 'Rappeler maman', when: 'quand je suis dehors' })
+assert.deepEqual(M.parseCapture('Acheter du café'), { title: 'Acheter du café' })
+const note = { id: 'n', title: 'Payer Doola', when: 'au prochain withdraw', createdOn: '2026-11-15' }
+assert.ok(M.isMemo(note) && M.isPending(note) && !M.isDue(note, now)); assert.equal(M.complete(note, now).doneAt, now)
+assert.ok(!M.isMemo({ ...note, repeat: 'month' }), 'pas de répétition sans date')
 console.log('Tests des rappels importants réussis : répétition, report, fait, libellés.')
