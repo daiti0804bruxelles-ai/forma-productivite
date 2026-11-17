@@ -88,7 +88,7 @@ const memoCount = () => (s.memos || []).filter(m => m.overdue).length + ((s.pend
 
 const w = new ListWidget()
 // webapp:// ouvre l'app installée sur l'écran d'accueil au lieu de Safari (iOS 16.4+).
-w.url = APP.replace(/^https:\/\//, 'webapp://') + (kind === 'memos' ? '/?page=memos' : '/')
+w.url = APP.replace('https://', 'webapp://') + (kind === 'memos' ? '/?page=memos' : '/')
 w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000)
 
 if (s.error) {
