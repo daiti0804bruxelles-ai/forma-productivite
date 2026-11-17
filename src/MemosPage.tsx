@@ -90,6 +90,8 @@ export default function MemosPage({ memos, now, onChange }: { memos: Memo[]; now
   const open = memos.filter(m => !m.doneAt && m.due).sort((a, b) => triggerOf(a).localeCompare(triggerOf(b)))
   const pending = memos.filter(isPending).sort((a, b) => a.createdOn.localeCompare(b.createdOn))
   const done = memos.filter(m => m.doneAt).sort((a, b) => (b.doneAt ?? '').localeCompare(a.doneAt ?? ''))
+  const [quick, setQuick] = useState('')
+  const capture = (e: FormEvent) => { e.preventDefault(); const { title, when } = parseCapture(quick); if (!title) return; onChange([...memos, { id: uid(), title, when, createdOn: now.slice(0, 10) }]); setQuick('') }
   const save = (m: Memo) => { onChange(memos.some(x => x.id === m.id) ? memos.map(x => x.id === m.id ? m : x) : [...memos, m]); setEditing(null) }
   const row = (m: Memo) => <SwipeRow key={m.id} done={Boolean(m.doneAt)} completeLabel="Fait" onComplete={m.doneAt ? () => save({ ...m, doneAt: undefined }) : () => save(complete(m, now))}
     onEdit={() => setEditing(m)} onDelete={() => onChange(memos.filter(x => x.id !== m.id))}>
@@ -100,6 +102,10 @@ export default function MemosPage({ memos, now, onChange }: { memos: Memo[]; now
   </SwipeRow>
   return <section>
     <div className="page-intro"><div><h1>À ne pas oublier</h1></div><button type="button" className="primary-btn" onClick={() => setEditing('new')}><Plus size={18} /> Nouveau</button></div>
+    <form className="list-card memo-capture memo-capture-page" onSubmit={capture}>
+      <input value={quick} maxLength={240} onChange={e => setQuick(e.target.value)} placeholder="Note-le ici, même sans date…" aria-label="Noter une chose à ne pas oublier" enterKeyHint="done" />
+      {quick.trim() && <button type="submit" className="icon-button" aria-label="Ajouter"><Plus size={18} /></button>}
+    </form>
     {pending.length > 0 && <section className="goal-section"><h2 className="goal-section-title">En attente</h2><div className="list-card">{pending.map(row)}</div></section>}
     {open.length ? <section className="goal-section">{pending.length > 0 && <h2 className="goal-section-title">Avec une date</h2>}<div className="list-card">{open.map(row)}</div></section>
       : pending.length ? null : <button type="button" className="goal-empty" onClick={() => setEditing('new')}><strong>Rien à oublier pour l’instant</strong><small>« Payer le loyer », « Renouveler le visa »… avec une date et une heure.</small></button>}
