@@ -56,7 +56,11 @@ function NumberPad({ goal, today, onSubmit, onDetails, onEdit, onClose }: { goal
     if (e.replace(',', '').length >= 9) return e
     return e === '0' ? key : e + key
   }), [])
-  const submit = useCallback(() => { if (valid) onSubmit(round(value)) }, [valid, value, onSubmit])
+  // Garde-fou pour une mesure : un écart énorme (ex. 18 kg au lieu de 93) est probablement une faute de frappe.
+  const [confirmOdd, setConfirmOdd] = useState(false)
+  const odd = goal.mode === 'value' && valid && current !== 0 && Math.abs(value - current) / Math.abs(current) > 0.25
+  const submit = useCallback(() => { if (!valid) return; if (odd && !confirmOdd) { setConfirmOdd(true); return } onSubmit(round(value)) }, [valid, value, onSubmit, odd, confirmOdd])
+  useEffect(() => { setConfirmOdd(false) }, [entry])
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (/^[0-9]$/.test(e.key)) press(e.key); else if (e.key === ',' || e.key === '.') press(',')
@@ -78,7 +82,8 @@ function NumberPad({ goal, today, onSubmit, onDetails, onEdit, onClose }: { goal
       <div className="goal-pad-keys">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', '⌫'].map(k => <button key={k} type="button" aria-label={k === '⌫' ? 'Effacer' : k} onClick={() => press(k)}>{k === '⌫' ? <Delete size={22} /> : k}</button>)}
       </div>
-      <button type="button" className="primary-btn goal-pad-ok" disabled={!valid} onClick={submit}>OK</button>
+      {confirmOdd && <p className="goal-pad-warn" role="alert">{formatNumber(value)}{u(goal)} alors que tu étais à {formatNumber(current)}{u(goal)} : c’est bien ça ?</p>}
+      <button type="button" className="primary-btn goal-pad-ok" disabled={!valid} onClick={submit}>{confirmOdd ? 'Oui, enregistrer' : 'OK'}</button>
     </div>
   </div>
 }

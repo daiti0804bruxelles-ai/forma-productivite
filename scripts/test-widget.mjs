@@ -18,5 +18,11 @@ assert.deepEqual([s.done, s.total], [2, 2], 'course et muscu en repos : ne compt
 assert.deepEqual(s.memo, { title: 'Payer le loyer', when: '2026-11-16T09:00', overdue: true, more: 0 })
 assert.deepEqual(s.pending, { count: 1, first: 'Payer Doola', when: 'au prochain withdraw' })
 assert.deepEqual([s.goal.current, s.goal.progress, s.goal.monthly], [2500, 0.25, true])
+assert.deepEqual(s.remaining, [], 'tout fait ou en repos')
+assert.deepEqual(s.memos.map(m => [m.title, m.overdue]), [['Payer le loyer', true], ['Payer Doola', false], ['Visa', false]])
+const w = summarize({ ...data, habits: [{ id: 'a', title: 'Méditer', period: 'Soir' }, { id: 'b', title: 'Eau', period: 'Matin' }], restPeriods: [], events: [{ id: 'e', title: 'Muscu', date: day, time: '18:00', skillIds: ['strength'] }],
+  goals: [{ id: 'p', title: 'Perdre 12 kg', mode: 'value', unit: 'kg', start: 96, target: 84, history: [{ at: '2026-11-09', value: 96 }, { at: '2026-11-12', value: 93 }] }], focusGoalId: 'p' }, day, '15:00')
+assert.deepEqual(w.remaining, [{ title: 'Muscu', time: '18:00' }, { title: 'Eau' }, { title: 'Méditer' }])
+assert.deepEqual([w.goal.mode, w.goal.current, w.goal.start, w.goal.progress], ['value', 93, 96, 0.25])
 assert.equal(summarize({}, day, '10:00').total, 0)
 console.log('Tests du widget réussis : série, progression, rappel, objectif.')
