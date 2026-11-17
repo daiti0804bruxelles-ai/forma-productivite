@@ -1,13 +1,13 @@
 /**
  * Script Scriptable des widgets iPhone, prérempli avec la clé du compte. Style minimal (clair/sombre selon l'iPhone).
- * Choix du widget via « Paramètre » : journée (par défaut), rappels, objectif (ou « objectif: CA » pour en choisir un).
+ * Choix du widget via « Paramètre » : journée (par défaut), rappels, objectif (2 objectifs ; « objectif: CA » pour un seul, « objectif: CA, livres » pour choisir).
  * Tailles : moyen (écran d'accueil) et écran verrouillé (rectangle, rond, ligne). Petit et grand restent utilisables.
  */
 export const newWidgetKey = () => Array.from(crypto.getRandomValues(new Uint8Array(20)), b => b.toString(16).padStart(2, '0')).join('')
 
 export function widgetScript(key: string, apiUrl: string, appUrl: string) {
   return `// Forma · widgets iPhone (Scriptable). Ne partage pas ce script : il contient ta clé.
-// Paramètre du widget : journée · rappels · objectif (ou « objectif: CA »).
+// Paramètre du widget : journée · rappels · objectif (2 objectifs) · « objectif: CA » (un seul) · « objectif: CA, livres » (ceux-là).
 const KEY = ${JSON.stringify(key)}
 const API = ${JSON.stringify(apiUrl)}
 const APP = ${JSON.stringify(appUrl)}
@@ -72,17 +72,23 @@ async function load() {
 // ---------- Choix ----------
 const param = norm(args.widgetParameter)
 const kind = param.startsWith('rappel') || param.startsWith('oubli') ? 'memos' : param.startsWith('objectif') || param.startsWith('goal') ? 'goal' : 'day'
-const goalQuery = kind === 'goal' ? norm(param.split(':')[1]) : ''
+const goalQueries = kind === 'goal' ? (param.split(':')[1] || '').split(',').map(norm).filter(Boolean) : []
 const family = config.widgetFamily || 'medium'
 const lock = family.startsWith('accessory')
 const s = await load()
-const pickGoal = () => { if (!s.goals) return s.goal; if (goalQuery) return s.goals.find(g => norm(g.title).includes(goalQuery)) || s.goal; return s.goal }
+const pickGoals = () => {
+  const all = s.goals || (s.goal ? [s.goal] : [])
+  if (goalQueries.length) { const found = goalQueries.map(q => all.find(g => norm(g.title).includes(q))).filter(Boolean); if (found.length) return found }
+  return goalQueries.length === 1 ? all.slice(0, 1) : all.slice(0, 2)
+}
+const pickGoal = () => pickGoals()[0]
 const goalLine = g => g.mode === 'value' ? fmt(g.current) + ' → ' + fmt(g.target) + (g.unit ? ' ' + g.unit : '') : fmt(g.current) + ' / ' + fmt(g.target) + (g.unit ? ' ' + g.unit : '')
 const goalLeft = g => { const left = Math.abs(g.target - g.current); if (g.progress >= 1) return 'Atteint'; return (g.mode === 'value' ? 'encore ' : 'reste ') + fmt(left) + (g.unit ? ' ' + g.unit : '') }
 const memoCount = () => (s.memos || []).filter(m => m.overdue).length + ((s.pending && s.pending.count) || 0)
 
 const w = new ListWidget()
-w.url = APP + (kind === 'memos' ? '/?page=memos' : '')
+// webapp:// ouvre l'app installée sur l'écran d'accueil au lieu de Safari (iOS 16.4+).
+w.url = APP.replace(/^https:\/\//, 'webapp://') + (kind === 'memos' ? '/?page=memos' : '/')
 w.refreshAfterDate = new Date(Date.now() + 15 * 60 * 1000)
 
 if (s.error) {
@@ -144,8 +150,10 @@ function memosView() {
 
 // ---------- Objectif ----------
 function goalView() {
-  const g = pickGoal()
-  if (!g) { add(w, 'Objectifs', F.title, C.text); w.addSpacer(); add(w, 'Aucun objectif en cours', F.row, C.sub); w.addSpacer(); return }
+  const list = pickGoals()
+  if (!list.length) { add(w, 'Objectifs', F.title, C.text); w.addSpacer(); add(w, 'Aucun objectif en cours', F.row, C.sub); w.addSpacer(); return }
+  if (list.length > 1 && family !== 'small') return twoGoals(list.slice(0, family === 'large' ? 4 : 2))
+  const g = list[0]
   const h = w.addStack(); h.centerAlignContent()
   add(h, g.title, F.title, C.text); h.addSpacer()
   if (g.monthly) add(h, new Date().toLocaleDateString('fr-FR', { month: 'long' }), F.small, C.sub)
@@ -158,6 +166,21 @@ function goalView() {
   w.addSpacer(6)
   const f = w.addStack()
   add(f, Math.round(g.progress * 100) + ' %', F.smallBold, C.sub); f.addSpacer(); add(f, goalLeft(g), F.small, C.sub)
+}
+function twoGoals(list) {
+  list.forEach((g, i) => {
+    if (i) w.addSpacer()
+    const h = w.addStack(); h.centerAlignContent()
+    add(h, g.title, F.smallBold, C.sub); h.addSpacer()
+    add(h, g.monthly ? new Date().toLocaleDateString('fr-FR', { month: 'short' }) : Math.round(g.progress * 100) + ' %', F.small, C.sub)
+    w.addSpacer(2)
+    const n = w.addStack(); n.bottomAlignContent()
+    add(n, fmt(g.current), Font.boldRoundedSystemFont(22), C.text); n.addSpacer(5)
+    add(n, (g.mode === 'value' ? '→ ' : '/ ') + fmt(g.target) + (g.unit ? ' ' + g.unit : ''), Font.semiboldRoundedSystemFont(12.5), C.sub)
+    n.addSpacer(); add(n, goalLeft(g), F.small, C.sub)
+    w.addSpacer(5)
+    bar(w, g.progress, 300, 4, C.accent, C.track)
+  })
 }
 
 // ---------- Écran verrouillé ----------

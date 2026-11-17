@@ -24,5 +24,11 @@ const w = summarize({ ...data, habits: [{ id: 'a', title: 'Méditer', period: 'S
   goals: [{ id: 'p', title: 'Perdre 12 kg', mode: 'value', unit: 'kg', start: 96, target: 84, history: [{ at: '2026-11-09', value: 96 }, { at: '2026-11-12', value: 93 }] }], focusGoalId: 'p' }, day, '15:00')
 assert.deepEqual(w.remaining, [{ title: 'Muscu', time: '18:00' }, { title: 'Eau' }, { title: 'Méditer' }])
 assert.deepEqual([w.goal.mode, w.goal.current, w.goal.start, w.goal.progress], ['value', 93, 96, 0.25])
+// Objectif atteint (même « Sur Aujourd'hui ») : remplacé par les objectifs en cours.
+const g2 = summarize({ goals: [
+  { id: 'done', title: 'Perdre 12 kg', mode: 'value', unit: 'kg', start: 96, target: 84, history: [{ at: '2026-11-10', value: 18 }], completedOn: '2026-11-10' },
+  { id: 'ca', title: 'CA', mode: 'add', unit: '$', start: 0, target: 30000, monthly: true, history: [{ at: '2026-11-03T10:00:00Z', value: 5000 }] },
+  { id: 'livres', title: 'Lire 12 livres', mode: 'add', start: 0, target: 12, history: [{ at: '2026-11-03', value: 3 }] } ], focusGoalId: 'done' }, day, '10:00')
+assert.deepEqual(g2.goals.map(g => g.title), ['CA', 'Lire 12 livres']); assert.equal(g2.goal.title, 'CA')
 assert.equal(summarize({}, day, '10:00').total, 0)
 console.log('Tests du widget réussis : série, progression, rappel, objectif.')

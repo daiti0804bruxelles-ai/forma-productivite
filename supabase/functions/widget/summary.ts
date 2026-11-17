@@ -62,8 +62,10 @@ export function summarize(data: Data, day: string, time: string): WidgetSummary 
     const progress = g.mode === 'add' ? (g.target > 0 ? current / g.target : 0) : (g.start === g.target ? 0 : (current - g.start) / (g.target - g.start))
     return { id: g.id, title: g.title, mode: g.mode, current: Math.round(current * 100) / 100, start: g.start, target: g.target, unit: g.unit, progress: Math.max(0, Math.min(1, progress)), monthly: Boolean(g.monthly) }
   }
-  const activeGoals = (data.goals ?? []).filter(x => !x.completedOn || x.monthly)
-  const focus = (data.goals ?? []).find(x => x.id === data.focusGoalId) ?? activeGoals[0]
+  // Objectifs en cours seulement (un objectif atteint ne s'affiche plus ; un mensuel repart chaque mois). L'objectif « Sur Aujourd'hui » passe en premier.
+  const activeGoals = (data.goals ?? []).filter(x => (!x.completedOn || x.monthly) && toGoal(x).progress < 1 || (x.monthly && x.id === data.focusGoalId))
+    .sort((a, b) => Number(b.id === data.focusGoalId) - Number(a.id === data.focusGoalId))
+  const focus = activeGoals[0]
   const goal = focus ? toGoal(focus) : undefined
   const goals = activeGoals.slice(0, 10).map(toGoal)
 
