@@ -254,7 +254,7 @@ useEffect(()=>{
  return ()=>{window.clearInterval(interval);window.removeEventListener('focus',refresh)}
 },[dataLoading])
 
- const [page,setPage]=useState<Page>(()=>new URLSearchParams(window.location.search).get('invite')?'goals':'dashboard')
+ const [page,setPage]=useState<Page>(()=>{const q=new URLSearchParams(window.location.search);return q.get('invite')?'goals':q.get('page')==='memos'?'memos':'dashboard'})
  const [inviteId,setInviteId]=useState(()=>new URLSearchParams(window.location.search).get('invite')||'')
   const [mobileMoreOpen,setMobileMoreOpen]=useState(false)
  const [modal,setModal]=useState<'task'|'habit'|'event'|null>(null)

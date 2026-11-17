@@ -767,3 +767,5 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 .memo-open { border: 0; background: transparent; color: var(--text); text-align: left; font: inherit; padding: 0; }
 .memo-more { display: block; padding: 12px 16px; }
 .memo-when { padding: 12px 14px; border: 1px solid var(--border); border-radius: 12px; background: transparent; color: var(--text); font: inherit; }
+
+.goal-pad-warn { margin: 0 0 8px; color: var(--danger); font-size: .85rem; text-align: center; }
