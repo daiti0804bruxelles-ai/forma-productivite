@@ -771,3 +771,6 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 .goal-pad-warn { margin: 0 0 8px; color: var(--danger); font-size: .85rem; text-align: center; }
 
 .memo-capture-page { margin-bottom: 18px; }
+
+/* iPhone : un champ en dessous de 16 px fait zoomer l'écran au toucher (et décale les barres fixes). */
+@media (max-width: 760px) { input, select, textarea { font-size: max(16px, 1em); } }
