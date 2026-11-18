@@ -14,45 +14,6 @@ const angleOf = (i: number) => (-90 + i * 60) * Math.PI / 180
 const point = (i: number, ratio: number) => [CX + Math.cos(angleOf(i)) * R * ratio, CY + Math.sin(angleOf(i)) * R * ratio] as const
 const fmt = (n: number) => n.toLocaleString('fr-FR')
 const position = (p: XpProgress) => (p.level - 1) + p.current / p.required
-/** Une couleur fixe par domaine (même ordre partout, jamais selon le classement). */
-const DOMAIN_COLORS: Record<string, string> = { appearance: 'var(--series-1)', health: 'var(--series-2)', knowledge: 'var(--series-3)', ambition: 'var(--series-4)', discipline: 'var(--series-5)', relations: 'var(--series-6)' }
-const SKILL_COLORS = ['var(--series-1)', 'var(--series-2)', 'var(--series-3)', 'var(--series-4)']
-const PERIODS: { id: string; label: string; step: Step; count: number }[] = [{ id: '30d', label: '30 jours', step: 'day', count: 30 }, { id: '12w', label: '12 semaines', step: 'week', count: 12 }]
-const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmt(Math.abs(Math.round(n)))}`
-
-function Evolution({ ledger, onOpen }: { ledger?: XpLedger; onOpen: (id: string) => void }) {
-  const [period, setPeriod] = useState(PERIODS[0])
-  const [hidden, setHidden] = useState<string[]>([])
-  const today = currentDayKey()
-  const now = domainSeries(ledger, today, period.step, period.count)
-  // Période précédente de même durée, pour la comparaison.
-  const before = domainSeries(ledger, today, period.step, period.count * 2)
-  // Jour par jour, la courbe montre l'XP des 7 derniers jours (lisible, pas de pics) ; par semaine, l'XP de chaque semaine.
-  const wide = domainSeries(ledger, today, period.step, period.count + 6)
-  const curve = (id: string) => period.step === 'day' ? rolling(wide.domains[id], 7, period.count) : now.domains[id]
-  const series = SKILL_GROUPS.filter(g => !hidden.includes(g.id)).map(g => ({ id: g.id, name: SHORT_NAMES[g.id] ?? g.name, color: DOMAIN_COLORS[g.id], values: curve(g.id) }))
-  const total = (v: number[]) => v.reduce((a, b) => a + b, 0)
-  return <div className="evo">
-    <div className="segmented evo-periods" role="tablist" aria-label="Période">{PERIODS.map(p => <button key={p.id} type="button" role="tab" aria-selected={p.id === period.id} onClick={() => setPeriod(p)}>{p.label}</button>)}</div>
-    <div className="evo-legend">{SKILL_GROUPS.map(g => <button key={g.id} type="button" className="evo-chip" aria-pressed={!hidden.includes(g.id)}
-      onClick={() => setHidden(h => h.includes(g.id) ? h.filter(x => x !== g.id) : [...h, g.id])}><i style={{ background: DOMAIN_COLORS[g.id] }} />{SHORT_NAMES[g.id]}</button>)}</div>
-    <div className="panel evo-panel">
-      <EvolutionChart series={series} labels={now.keys.map(shortLabel)} tipLabels={now.keys.map(k => period.step === 'day' ? `7 jours jusqu’au ${bucketLabel(k, 'day')}` : bucketLabel(k, 'week'))} />
-      <p className="evo-caption">{period.step === 'day' ? 'XP gagné sur 7 jours, jour par jour' : 'XP gagné par semaine'} (pénalités déduites)</p>
-    </div>
-    <div className="evo-table">{SKILL_GROUPS.map(g => {
-      const cur = total(now.domains[g.id]), prev = total(before.domains[g.id].slice(0, period.count))
-      return <button key={g.id} type="button" className="evo-row" onClick={() => onOpen(g.id)}>
-        <i style={{ background: DOMAIN_COLORS[g.id] }} /><span className="evo-name">{g.name}</span>
-        <span className="evo-total">{signed(cur)} XP</span>
-        <small className={cur >= prev ? 'evo-up' : 'evo-down'}>{prev === 0 && cur === 0 ? '—' : `${cur >= prev ? '▲' : '▼'} ${signed(cur - prev)}`}</small>
-        <ChevronRight size={15} aria-hidden="true" />
-      </button>
-    })}</div>
-    <p className="evo-caption">Comparé aux {period.label} précédents.</p>
-  </div>
-}
-
 function Bar({ progress }: { progress: XpProgress }) {
   return <div className="bar bar-thin" role="progressbar" aria-valuenow={progress.current} aria-valuemin={0} aria-valuemax={progress.required}>
     <div style={{ width: `${Math.min(100, progress.current / progress.required * 100)}%` }} />
@@ -88,14 +49,49 @@ function Radar({ domains, onOpen }: { domains: Domain[]; onOpen: (id: string) =>
   </svg>
 }
 
-function SkillChart({ ledger, skills }: { ledger?: XpLedger; skills: { id: string; name: string }[] }) {
-  const { keys, skills: data } = domainSeries(ledger, currentDayKey(), 'day', 36)
-  const series = skills.map((s, i) => ({ id: s.id, name: s.name, color: SKILL_COLORS[i % SKILL_COLORS.length], values: rolling(data[s.id as keyof typeof data], 7, 30) }))
-  const shown = keys.slice(-30)
-  return <div className="evo-mini">
-    <div className="evo-legend">{series.map(s => <span key={s.id} className="evo-chip is-static"><i style={{ background: s.color }} />{s.name}</span>)}</div>
-    <EvolutionChart series={series} labels={shown.map(shortLabel)} tipLabels={shown.map(k => `7 jours jusqu’au ${bucketLabel(k, 'day')}`)} />
-    <p className="evo-caption">XP gagné sur 7 jours, sur les 30 derniers jours</p>
+const PERIODS: { id: string; label: string; step: Step; count: number }[] = [{ id: '30d', label: '30 j', step: 'day', count: 30 }, { id: '12w', label: '12 sem.', step: 'week', count: 12 }]
+const signed = (n: number) => `${n > 0 ? '+' : n < 0 ? '−' : ''}${fmt(Math.abs(Math.round(n)))}`
+const sum = (v: number[]) => v.reduce((a, b) => a + b, 0)
+
+/** Mini-courbe sans axes, couleur d'accent. */
+function Spark({ values }: { values: number[] }) {
+  if (values.every(v => v === 0)) return <span className="sparkline" style={{ width: 64 }} aria-hidden="true" />
+  const max = Math.max(1, ...values), min = Math.min(0, ...values), w = 64, h = 20
+  const pts = values.map((v, i) => `${(i / Math.max(1, values.length - 1)) * w},${h - 1 - ((v - min) / (max - min || 1)) * (h - 2)}`).join(' ')
+  return <svg className="sparkline" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true"><polyline points={pts} /></svg>
+}
+
+/** Évolution minimaliste : un chiffre, une courbe, la liste des domaines. */
+function Evolution({ ledger, onOpen }: { ledger?: XpLedger; onOpen: (id: string) => void }) {
+  const [period, setPeriod] = useState(PERIODS[0])
+  const [focus, setFocus] = useState<string>('all')
+  const today = currentDayKey()
+  const daily = period.step === 'day'
+  // Jour par jour : XP des 7 derniers jours (courbe lisible). Par semaine : XP de chaque semaine.
+  const wide = domainSeries(ledger, today, period.step, period.count * 2 + (daily ? 6 : 0))
+  const curveOf = (v: number[]) => daily ? rolling(v, 7, period.count) : v.slice(-period.count)
+  const all = wide.keys.map((_, i) => SKILL_GROUPS.reduce((t, g) => t + wide.domains[g.id][i], 0))
+  const raw = focus === 'all' ? all : wide.domains[focus]
+  const current = sum(raw.slice(-period.count)), previous = sum(raw.slice(-period.count * 2, -period.count))
+  const keys = wide.keys.slice(-period.count)
+  const diff = previous ? Math.round((current - previous) / Math.abs(previous) * 100) : null
+  const name = focus === 'all' ? 'Toutes les compétences' : SKILL_GROUPS.find(g => g.id === focus)!.name
+  return <div className="evo">
+    <div className="evo-head">
+      <div><p className="evo-label">{name}</p><p className="evo-big">{signed(current)} <small>XP</small></p>
+        <p className="evo-diff">{diff === null ? `sur ${daily ? '30 jours' : '12 semaines'}` : `${diff >= 0 ? '+' : '−'}${Math.abs(diff)} % vs période précédente`}</p></div>
+      <div className="segmented evo-periods" role="tablist" aria-label="Période">{PERIODS.map(p => <button key={p.id} type="button" role="tab" aria-selected={p.id === period.id} onClick={() => setPeriod(p)}>{p.label}</button>)}</div>
+    </div>
+    <EvolutionChart values={curveOf(raw)} labels={keys.map(shortLabel)} tipLabels={keys.map(k => daily ? `7 jours au ${bucketLabel(k, 'day')}` : bucketLabel(k, 'week'))} />
+    <div className="evo-list">
+      <button type="button" className="evo-row" aria-pressed={focus === 'all'} onClick={() => setFocus('all')}>
+        <span className="evo-name">Tout</span><Spark values={curveOf(all)} /><span className="evo-total">{signed(sum(all.slice(-period.count)))}</span>
+      </button>
+      {SKILL_GROUPS.map(g => <button key={g.id} type="button" className="evo-row" aria-pressed={focus === g.id} onClick={() => focus === g.id ? onOpen(g.id) : setFocus(g.id)}>
+        <span className="evo-name">{SHORT_NAMES[g.id] ?? g.name}</span><Spark values={curveOf(wide.domains[g.id])} /><span className="evo-total">{signed(sum(wide.domains[g.id].slice(-period.count)))}</span>
+      </button>)}
+    </div>
+    <p className="evo-caption">{daily ? 'Chaque point = XP gagné sur les 7 jours précédents' : 'Chaque point = XP de la semaine'}, pénalités déduites. Touche deux fois un domaine pour voir ses compétences.</p>
   </div>
 }
 
@@ -150,6 +146,7 @@ function DomainSheet({ groupId, ledger, onClose }: { groupId: string; ledger?: X
   const move = (e: ReactPointerEvent<HTMLDivElement>) => { if (mouseStart.current !== null) setOffset(Math.max(0, e.clientY - mouseStart.current)) }
   const up = () => { if (mouseStart.current === null) return; mouseStart.current = null; if (dragRef.current > 90) onClose(); else setOffset(0) }
   const rank = rankFor(domain.level)
+  const history = domainSeries(ledger, currentDayKey(), 'day', 36).skills
   return <div className="sheet-backdrop" onMouseDown={onClose}>
     <div ref={sheetRef} className="sheet skill-sheet" role="dialog" aria-modal="true" aria-label={group.name} onMouseDown={e => e.stopPropagation()}
       style={drag ? { transform: `translateY(${drag}px)`, transition: 'none' } : undefined}>
@@ -162,12 +159,11 @@ function DomainSheet({ groupId, ledger, onClose }: { groupId: string; ledger?: X
         <button type="button" className="icon-button" aria-label="Fermer" onClick={onClose}><X size={20} /></button>
       </div>
       <Bar progress={domain} />
-      <SkillChart ledger={ledger} skills={group.skills.map(s => ({ id: s.id, name: s.name }))} />
       <div className="skill-list">{group.skills.map(skill => {
         const progress = skillProgress(ledger, skill.id)
         const skillRank = rankFor(progress.level)
         return <div key={skill.id} className="skill-row">
-          <div className="skill-row-top"><span>{skill.name}{skillRank && <small className="rank-mini">{skillRank}</small>}</span><span className="skill-level">Niv. {progress.level}</span></div>
+          <div className="skill-row-top"><span>{skill.name}{skillRank && <small className="rank-mini">{skillRank}</small>}</span><span className="skill-level"><Spark values={rolling(history[skill.id], 7, 30)} />Niv. {progress.level}</span></div>
           <Bar progress={progress} />
           <div className="skill-xp">{fmt(progress.current)} / {fmt(progress.required)} XP</div>
         </div>

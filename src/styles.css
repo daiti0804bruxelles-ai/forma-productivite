@@ -775,34 +775,33 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 /* iPhone : un champ en dessous de 16 px fait zoomer l'écran au toucher (et décale les barres fixes). */
 @media (max-width: 760px) { input, select, textarea { font-size: max(16px, 1em); } }
 
-/* Évolution des compétences : couleurs par domaine (validées clair / sombre, ordre fixe) */
-:root { --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4; --series-6: #008300; }
-:root[data-theme='sombre'] { --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181; --series-6: #0ca30c; }
-.skills-tabs { margin-bottom: 16px; }
-.evo { display: grid; gap: 12px; }
-.evo-periods { justify-self: start; }
-.evo-legend { display: flex; flex-wrap: wrap; gap: 6px; }
-.evo-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text); font: inherit; font-size: .8rem; font-weight: 500; }
-.evo-chip i, .evo-row i, .evo-tip i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.evo-chip[aria-pressed='false'] { color: var(--text-2); opacity: .55; }
-.evo-chip[aria-pressed='false'] i { background: var(--line) !important; }
-.evo-chip.is-static { border: 0; padding: 2px 6px 2px 0; font-size: .78rem; color: var(--text-2); }
-.evo-panel { padding: 12px 10px 8px; }
+/* Évolution des compétences : minimal, une couleur (accent) */
+.skills-tabs { margin-bottom: 18px; }
+.evo { display: grid; gap: 14px; }
+.evo-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.evo-label { color: var(--text-2); font-size: .82rem; }
+.evo-big { margin-top: 2px; font-size: 2rem; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.evo-big small { color: var(--text-2); font-size: .95rem; font-weight: 600; }
+.evo-diff { color: var(--text-2); font-size: .8rem; }
+.evo-periods { flex-shrink: 0; }
 .evo-chart { position: relative; touch-action: pan-y; }
 .evo-chart svg { display: block; overflow: visible; }
-.evo-grid { stroke: var(--line); stroke-width: 1; }
-.evo-zero { stroke: var(--text-2); stroke-width: 1; opacity: .5; }
+.evo-point { display: flex; align-items: baseline; gap: 8px; min-height: 20px; margin-bottom: 4px; font-size: .82rem; }
+.evo-point strong { font-variant-numeric: tabular-nums; }
+.evo-point span { color: var(--text-2); }
+.evo-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.evo-zero { stroke: var(--line); stroke-width: 1; }
+.evo-cross { stroke: var(--line); stroke-width: 1; }
+.evo-dot { fill: var(--accent); stroke: var(--bg); stroke-width: 2; }
 .evo-axis { fill: var(--text-2); font-size: 10px; }
-.evo-cross { stroke: var(--text-2); stroke-width: 1; opacity: .5; }
-.evo-dot { stroke: var(--surface); stroke-width: 2; }
-.evo-tip { position: absolute; top: 4px; display: grid; gap: 3px; min-width: 130px; padding: 8px 10px; border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-pop); color: var(--text); font-size: .76rem; pointer-events: none; }
-.evo-tip span { display: flex; align-items: center; gap: 6px; color: var(--text-2); }
-.evo-tip b { margin-left: auto; color: var(--text); font-variant-numeric: tabular-nums; }
-.evo-caption { margin: 4px 2px 0; color: var(--text-2); font-size: .76rem; }
-.evo-table { display: grid; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
-.evo-row { display: flex; align-items: center; gap: 10px; padding: 13px 14px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; text-align: left; }
+.evo-list { display: grid; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+.evo-row { display: flex; align-items: center; gap: 12px; padding: 13px 16px; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--text); font: inherit; text-align: left; }
 .evo-row:first-child { border-top: 0; }
+.evo-row[aria-pressed='true'] { background: var(--accent-soft); }
+.evo-row[aria-pressed='true'] .evo-name { color: var(--accent-ink); font-weight: 600; }
 .evo-name { flex: 1; min-width: 0; font-size: .92rem; }
-.evo-total { font-weight: 600; font-variant-numeric: tabular-nums; font-size: .9rem; }
-.evo-row small { min-width: 58px; text-align: right; font-size: .75rem; font-variant-numeric: tabular-nums; color: var(--text-2); }
-.evo-mini { display: grid; gap: 6px; }
+.evo-total { min-width: 56px; text-align: right; font-weight: 600; font-size: .88rem; font-variant-numeric: tabular-nums; }
+.sparkline { flex-shrink: 0; overflow: visible; }
+.sparkline polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; opacity: .85; }
+.skill-level { display: inline-flex; align-items: center; gap: 10px; }
+.evo-caption { margin: 0 2px; color: var(--text-2); font-size: .75rem; line-height: 1.4; }
