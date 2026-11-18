@@ -774,3 +774,44 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 
 /* iPhone : un champ en dessous de 16 px fait zoomer l'écran au toucher (et décale les barres fixes). */
 @media (max-width: 760px) { input, select, textarea { font-size: max(16px, 1em); } }
+
+:root { --series-1: #2a78d6; --series-2: #eb6834; --series-3: #1baf7a; --series-4: #eda100; --series-5: #e87ba4; --series-6: #008300; }
+:root[data-theme='sombre'] { --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --series-4: #c98500; --series-5: #d55181; --series-6: #0ca30c; }
+/* Évolution des compétences : minimal, une couleur fixe par domaine */
+.skills-tabs { margin-bottom: 18px; }
+.evo { display: grid; gap: 14px; }
+.evo-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.evo-label { color: var(--text-2); font-size: .82rem; }
+.evo-big { margin-top: 2px; font-size: 2rem; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.evo-big small { color: var(--text-2); font-size: .95rem; font-weight: 600; }
+.evo-diff { color: var(--text-2); font-size: .8rem; }
+.evo-periods { flex-shrink: 0; }
+.evo-chart { position: relative; touch-action: pan-y; }
+.evo-chart svg { display: block; overflow: visible; }
+.evo-point { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-height: 20px; margin-bottom: 6px; font-size: .78rem; color: var(--text-2); }
+.evo-point-day { color: var(--text); font-weight: 600; width: 100%; }
+.evo-point-item { display: inline-flex; align-items: center; gap: 5px; }
+.evo-point-item i { width: 7px; height: 7px; border-radius: 50%; }
+.evo-point-item b { color: var(--text); font-variant-numeric: tabular-nums; }
+.evo-line { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.evo-zero { stroke: var(--line); stroke-width: 1; }
+.evo-cross { stroke: var(--line); stroke-width: 1; }
+.evo-dot { stroke: var(--bg); stroke-width: 2; }
+.evo-axis { fill: var(--text-2); font-size: 10px; }
+.evo-insight { display: flex; justify-content: space-between; gap: 12px; color: var(--text-2); font-size: .82rem; }
+.evo-insight strong { color: var(--text); font-weight: 600; }
+.evo-list { display: grid; border-radius: 18px; background: var(--surface); box-shadow: var(--shadow); overflow: hidden; }
+.evo-list-head { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px 6px; color: var(--text-2); font-size: .78rem; font-weight: 600; }
+.evo-list-head .text-action { font-size: .8rem; }
+.evo-row { display: flex; align-items: center; border-top: 1px solid var(--line); }
+.evo-toggle { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 13px 4px 13px 16px; border: 0; background: transparent; color: var(--text); font: inherit; text-align: left; }
+.evo-check { width: 16px; height: 16px; flex-shrink: 0; border: 2px solid; border-radius: 50%; box-sizing: border-box; transition: background .15s ease; }
+.evo-toggle[aria-pressed='false'] .evo-name, .evo-toggle[aria-pressed='false'] .evo-total { color: var(--text-2); }
+.evo-toggle[aria-pressed='false'] .sparkline { opacity: .35; }
+.evo-name { flex: 1; min-width: 0; font-size: .92rem; }
+.evo-total { min-width: 52px; text-align: right; font-weight: 600; font-size: .88rem; font-variant-numeric: tabular-nums; }
+.evo-open { display: grid; place-items: center; width: 40px; align-self: stretch; border: 0; background: transparent; color: var(--text-2); }
+.sparkline { flex-shrink: 0; overflow: visible; }
+.sparkline polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.skill-level { display: inline-flex; align-items: center; gap: 10px; }
+.evo-caption { margin: 0 2px; color: var(--text-2); font-size: .75rem; line-height: 1.4; }
