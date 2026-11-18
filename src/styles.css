@@ -471,11 +471,25 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
 
 /* ───────────── Grand écran ───────────── */
 @media (min-width: 1100px) {
-  .today { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; align-items: start; }
-  .today-head, .day-progress { grid-column: 1 / -1; }
-  .today-events { grid-column: 1; grid-row: 3; }
-  .today-tasks { grid-column: 1; grid-row: 4; }
-  .today-habits { grid-column: 2; grid-row: 3 / span 2; }
+  /* Aujourd'hui : tout ce qui est en haut (titre, alerte, progression, objectif) sur toute la largeur,
+     puis deux colonnes : Programme + Tâches à gauche, Habitudes à droite. */
+  .today { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 28px; row-gap: 22px; align-items: start; grid-auto-flow: row dense; }
+  .today > * { grid-column: 1 / -1; }
+  .today-events, .today-tasks { grid-column: 1; }
+  .today-habits { grid-column: 2; grid-row: span 2; }
+  .today .memo-due { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-bottom: 0; }
+  .today .show-done { justify-self: start; }
+  /* Objectifs en grille */
+  .goal-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+  /* Compétences : radar à gauche, domaines à droite */
+  .skills-overview { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .skills-overview .domain-list { margin-top: 0; }
+  .evo { grid-template-columns: minmax(0, 1.5fr) minmax(300px, 1fr); gap: 28px; align-items: start; }
+  .evo-main, .evo-side { display: grid; gap: 14px; min-width: 0; }
+  /* Calendrier : panneau du jour plus large pour que les titres ne se coupent pas */
+  .calendar-layout { grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr); }
+  /* Rappels : liste plus lisible */
+  .memo-capture-page, .list-card { max-width: none; }
 }
 @media (max-width: 1100px) {
   .period-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -815,3 +829,5 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 .sparkline polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
 .skill-level { display: inline-flex; align-items: center; gap: 10px; }
 .evo-caption { margin: 0 2px; color: var(--text-2); font-size: .75rem; line-height: 1.4; }
+
+.evo-main, .evo-side { display: grid; gap: 14px; min-width: 0; }
