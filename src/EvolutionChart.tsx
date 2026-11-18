@@ -3,7 +3,7 @@ import type { PointerEvent } from 'react'
 
 export type Series = { id: string; name: string; color: string; values: number[] }
 const fmt = (n: number) => new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(n)
-const H = 160, T = 12, B = 22
+const T = 12, B = 22
 
 /** Courbes minimalistes : une couleur par série, pas de quadrillage ; toucher = valeurs du point (sous le titre). */
 export default function EvolutionChart({ series, labels, tipLabels }: { series: Series[]; labels: string[]; tipLabels: string[] }) {
@@ -16,6 +16,7 @@ export default function EvolutionChart({ series, labels, tipLabels }: { series: 
     ro.observe(el); return () => ro.disconnect()
   }, [])
   useEffect(() => { if (hover === null) return; const t = window.setTimeout(() => setHover(null), 4000); return () => window.clearTimeout(t) }, [hover])
+  const H = w > 520 ? 230 : 160 // plus haut sur ordinateur
   const n = labels.length
   const all = series.flatMap(s => s.values)
   const max = Math.max(10, ...all) * 1.1, min = Math.min(0, ...all) * 1.1

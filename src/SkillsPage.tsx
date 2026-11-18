@@ -85,6 +85,7 @@ function Evolution({ ledger, onOpen }: { ledger?: XpLedger; onOpen: (id: string)
   const toggle = (id: string) => setShown(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
   const best = rows[0], worst = rows[rows.length - 1]
   return <div className="evo">
+    <div className="evo-main">
     <div className="evo-head">
       <div><p className="evo-label">{allOn ? 'Toutes les compétences' : visible.length === 1 ? SKILL_GROUPS.find(g => g.id === visible[0].id)!.name : `${visible.length} domaines`}</p>
         <p className="evo-big">{signed(current)} <small>XP</small></p>
@@ -94,6 +95,8 @@ function Evolution({ ledger, onOpen }: { ledger?: XpLedger; onOpen: (id: string)
     <EvolutionChart series={visible.map(r => ({ id: r.id, name: r.name, color: r.color, values: r.curve }))} labels={keys.map(shortLabel)}
       tipLabels={keys.map(k => daily ? `7 jours au ${bucketLabel(k, 'day')}` : bucketLabel(k, 'week'))} />
     {best.total !== worst.total && <p className="evo-insight"><span>Point fort <strong>{best.name}</strong></span><span>À travailler <strong>{worst.name}</strong></span></p>}
+    </div>
+    <div className="evo-side">
     <div className="evo-list">
       <div className="evo-list-head"><span>Domaines</span><button type="button" className="text-action" onClick={() => setShown(allOn ? [] : SKILL_GROUPS.map(g => g.id))}>{allOn ? 'Tout décocher' : 'Tout cocher'}</button></div>
       {rows.map(r => <div key={r.id} className="evo-row">
@@ -107,6 +110,7 @@ function Evolution({ ledger, onOpen }: { ledger?: XpLedger; onOpen: (id: string)
       </div>)}
     </div>
     <p className="evo-caption">{daily ? 'Chaque point = XP gagné sur les 7 jours précédents' : 'Chaque point = XP de la semaine'}, pénalités déduites. Coche les domaines à comparer ; la flèche ouvre leurs compétences.</p>
+    </div>
   </div>
 }
 
@@ -201,7 +205,7 @@ export default function SkillsPage({ ledger }: Props) {
   return <section>
     <div className="page-intro"><div><h1>Compétences</h1></div></div>
     <div className="segmented skills-tabs" role="tablist" aria-label="Affichage"><button type="button" role="tab" aria-selected={tab === 'overview'} onClick={() => setTab('overview')}>Niveaux</button><button type="button" role="tab" aria-selected={tab === 'evolution'} onClick={() => setTab('evolution')}>Évolution</button></div>
-    {tab === 'evolution' ? <Evolution ledger={ledger} onOpen={setOpenId} /> : <>
+    {tab === 'evolution' ? <Evolution ledger={ledger} onOpen={setOpenId} /> : <div className="skills-overview">
     <div className="panel skills-hero">
       <Radar domains={domains} onOpen={setOpenId} />
       {showInsight && <p className="skills-insight"><span>Point fort <strong>{label(best)}</strong></span><span>À travailler <strong>{label(worst)}</strong></span></p>}
@@ -214,7 +218,7 @@ export default function SkillsPage({ ledger }: Props) {
         <ChevronRight size={16} aria-hidden="true" />
       </button>
     })}</div>
-    </>}
+    </div>}
     {openId && <DomainSheet groupId={openId} ledger={ledger} onClose={() => setOpenId(null)} />}
   </section>
 }
