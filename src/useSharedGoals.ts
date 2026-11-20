@@ -11,6 +11,8 @@ type Space = { id: string; name: string; owner_id: string }
 type Row = { id: string; space_id: string; title: string; unit: string | null; target: number | string; created_by: string; created_at: string; monthly?: boolean; difficulty?: GoalDifficulty | null; skill_ids?: string[] | null }
 export type SharedEntry = { id: string; goal_id: string; actor_id: string; amount: number; created_at: string }
 export type SharedGoal = Goal & { shared: true; createdBy: string }
+/** Tâche à deux : faite dès qu'un membre la coche. */
+export type SharedTask = { id: string; title: string; due_date: string; difficulty: 'facile' | 'moyen' | 'difficile' | 'epique'; skill_ids: string[]; created_by: string; created_at: string; done_at: string | null; done_by: string | null }
 type Invitation = { id: string; invited_email: string; status: string; expires_at: string }
 
 const message = (e: unknown) => {
@@ -26,6 +28,7 @@ export function useSharedGoals(userId: string | undefined, active = true) {
   const [rows, setRows] = useState<Row[]>([])
   const [entries, setEntries] = useState<SharedEntry[]>([])
   const [invitations, setInvitations] = useState<Invitation[]>([])
+  const [tasks, setTasks] = useState<SharedTask[]>([])
   const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
 
@@ -36,7 +39,7 @@ export function useSharedGoals(userId: string | undefined, active = true) {
     const { data: owned, error: e2 } = await supabase.from('shared_spaces').select('id,name,owner_id').eq('owner_id', userId)
     if (e2) throw e2
     const ids = [...new Set([...(membership ?? []).map(m => m.space_id as string), ...(owned ?? []).map(s => s.id as string)])]
-    if (!ids.length) { setSpace(null); setRows([]); setEntries([]); setMembers(0); return }
+    if (!ids.length) { setSpace(null); setRows([]); setEntries([]); setMembers(0); setTasks([]); return }
     const { data: spaces, error: e3 } = await supabase.from('shared_spaces').select('id,name,owner_id').in('id', ids).order('created_at')
     if (e3) throw e3
     const s = (spaces ?? [])[0] as Space | undefined
@@ -49,6 +52,9 @@ export function useSharedGoals(userId: string | undefined, active = true) {
     ])
     if (g.error) throw g.error
     setRows((g.data ?? []) as Row[]); setMembers(m.data?.length ?? 0); setInvitations((i.data ?? []) as Invitation[])
+    // Tâches à deux (table récente : si elle n'existe pas encore, on ne montre simplement rien).
+    const t = await supabase.from('shared_tasks').select('*').eq('space_id', s.id).order('due_date')
+    setTasks(t.error ? [] : (t.data ?? []) as SharedTask[])
     const goalIds = (g.data ?? []).map(x => x.id as string)
     if (!goalIds.length) { setEntries([]); return }
     const r = await supabase.from('shared_goal_entries').select('id,goal_id,actor_id,amount,created_at').in('goal_id', goalIds).order('created_at')
@@ -112,6 +118,16 @@ export function useSharedGoals(userId: string | undefined, active = true) {
       await load().catch(() => {})
       return data.id as string
     },
+    tasks,
+    addTask: (t: { title: string; due_date: string; difficulty: SharedTask['difficulty']; skill_ids: string[] }) => space ? run(() => supabase.from('shared_tasks').insert({ ...t, space_id: space.id, created_by: userId })) : Promise.resolve(false),
+    toggleTask: (task: SharedTask) => {
+      const done = !task.done_at
+      setTasks(list => list.map(x => x.id === task.id ? { ...x, done_at: done ? new Date().toISOString() : null, done_by: done ? userId ?? null : null } : x)) // affichage immédiat
+      return run(() => supabase.from('shared_tasks').update(done ? { done_at: new Date().toISOString(), done_by: userId } : { done_at: null, done_by: null }).eq('id', task.id))
+    },
+    moveTask: (task: SharedTask, due_date: string) => run(() => supabase.from('shared_tasks').update({ due_date }).eq('id', task.id)),
+    removeTask: (task: SharedTask) => { setTasks(list => list.filter(x => x.id !== task.id)); return run(() => supabase.from('shared_tasks').delete().eq('id', task.id)) },
+    userId,
     accept: (invitationId: string) => run(() => supabase.rpc('forma_accept_shared_invitation', { p_invitation: invitationId })),
     isOwner: space?.owner_id === userId,
   }
