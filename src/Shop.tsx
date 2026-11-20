@@ -1,16 +1,20 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Flame, Plus, Shield, Trash2, Zap } from 'lucide-react'
+import { Coins, Eraser, Flame, Gift, Plus, Shield, Trash2, Zap } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { PERKS, boostActive, buy, goldBalance, applyJoker, type GameState, type PerkId } from './game'
+import { PERKS, boostActive, buy, goldBalance, goldBoostActive, applyJoker, type GameState, type PerkId } from './game'
 
-type Props = { state: GameState; today: string; onChange: (next: GameState) => void }
+export type LastPenalty = { key: string; label: string; total: number }
+type Props = { state: GameState; today: string; onChange: (next: GameState) => void; penalty?: LastPenalty; onErase: () => void }
 const tomorrowOf = (day: string) => { const [y, m, d] = day.split('-').map(Number); const x = new Date(y, m - 1, d + 1); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}` }
-const pick = (s: GameState): GameState => ({ goldLedger: s.goldLedger, rewards: s.rewards, inventory: s.inventory, protectedDays: s.protectedDays, boostUntil: s.boostUntil })
+const pick = (s: GameState): GameState => ({ goldLedger: s.goldLedger, rewards: s.rewards, inventory: s.inventory, protectedDays: s.protectedDays, boostUntil: s.boostUntil, goldBoostUntil: s.goldBoostUntil })
 const PERK_UI: Record<PerkId, { icon: LucideIcon; short: string; hint: string }> = {
   joker: { icon: Shield, short: 'Joker', hint: 'Une journée sans pénalité' },
   shield: { icon: Flame, short: 'Série', hint: 'Sauve ta flamme un jour vide (automatique)' },
-  boost: { icon: Zap, short: 'Boost ×2', hint: 'XP doublée pendant 24 h' },
+  boost: { icon: Zap, short: 'XP ×2', hint: 'XP doublée pendant 24 h' },
+  goldboost: { icon: Coins, short: 'Or ×2', hint: 'Or doublé pendant 24 h' },
+  chest: { icon: Gift, short: 'Coffre', hint: 'Entre 20 et 200 or, au hasard' },
+  erase: { icon: Eraser, short: 'Effacer', hint: 'Annule ta dernière pénalité' },
 }
 
 export function Coin({ amount }: { amount: number }) {
@@ -18,7 +22,7 @@ export function Coin({ amount }: { amount: number }) {
 }
 
 /** Boutique épurée : 3 bonus en cartes, tes récompenses avec leur progression. Achat en deux touches. */
-export default function Shop({ state, today, onChange }: Props) {
+export default function Shop({ state, today, onChange, penalty, onErase }: Props) {
   const balance = goldBalance(state.goldLedger)
   const [confirm, setConfirm] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
@@ -28,11 +32,15 @@ export default function Shop({ state, today, onChange }: Props) {
   const tomorrow = tomorrowOf(today)
   const jokers = state.inventory?.joker ?? 0
 
+  const [result, setResult] = useState<string | null>(null)
   const purchase = (id: string, item: Parameters<typeof buy>[1]) => {
-    if (confirm !== id) { setConfirm(id); return }
-    const next = buy(state, item)
+    if (confirm !== id) { setConfirm(id); setResult(null); return }
     setConfirm(null)
-    if (next) onChange(pick(next))
+    if (item.kind === 'perk' && item.id === 'erase') { onErase(); setResult('Pénalité effacée : ton XP est revenu.'); return }
+    const next = buy(state, item)
+    if (!next) return
+    onChange(pick(next))
+    if (item.kind === 'perk' && item.id === 'chest') { const won = next.goldLedger!.events[next.goldLedger!.events.length - 1].amount; setResult(`Coffre mystère : +${won} or`) }
   }
   const protect = (day: string) => { const next = applyJoker(state, day); if (next) onChange(pick(next)) }
   const addReward = (e: FormEvent) => {
@@ -50,10 +58,11 @@ export default function Shop({ state, today, onChange }: Props) {
       {PERKS.map(perk => {
         const ui = PERK_UI[perk.id]
         const id = `perk-${perk.id}`
-        const count = perk.id === 'boost' ? 0 : state.inventory?.[perk.id] ?? 0
-        const active = perk.id === 'boost' && boostActive(state)
+        const count = perk.id === 'joker' || perk.id === 'shield' ? state.inventory?.[perk.id] ?? 0 : 0
+        const active = (perk.id === 'boost' && boostActive(state)) || (perk.id === 'goldboost' && goldBoostActive(state))
+        const unavailable = perk.id === 'erase' && !penalty
         return <button key={perk.id} type="button" title={ui.hint} aria-label={`${perk.name} : ${ui.hint}. ${perk.price} or`}
-          className={`perk-card ${confirm === id ? 'is-confirm' : ''}`} disabled={balance < perk.price && confirm !== id} onClick={() => purchase(id, { kind: 'perk', id: perk.id })}>
+          className={`perk-card ${confirm === id ? 'is-confirm' : ''}`} disabled={(balance < perk.price && confirm !== id) || unavailable} onClick={() => purchase(id, { kind: 'perk', id: perk.id })}>
           {(count > 0 || active) && <span className="perk-badge">{active ? 'actif' : `×${count}`}</span>}
           <ui.icon size={26} strokeWidth={1.8} />
           <strong>{ui.short}</strong>
@@ -61,6 +70,8 @@ export default function Shop({ state, today, onChange }: Props) {
         </button>
       })}
     </div>
+    {result && <p className="shop-result" role="status">{result}</p>}
+    {confirm === 'perk-erase' && penalty && <p className="shop-result">Dernière pénalité : <strong>{penalty.label}</strong> · {penalty.total} XP</p>}
     {jokers > 0 && <div className="shop-actions">
       <button type="button" className="chip" disabled={state.protectedDays?.includes(today)} onClick={() => protect(today)}>{state.protectedDays?.includes(today) ? 'Aujourd’hui protégé' : 'Joker : protéger aujourd’hui'}</button>
       <button type="button" className="chip" disabled={state.protectedDays?.includes(tomorrow)} onClick={() => protect(tomorrow)}>{state.protectedDays?.includes(tomorrow) ? 'Demain protégé' : 'Demain'}</button>

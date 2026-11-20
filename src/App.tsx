@@ -4,6 +4,7 @@ import type { LucideIcon } from 'lucide-react'
 import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
 import GoalsPage from './GoalsPage'
+import { useSharedGoals } from './useSharedGoals'
 import SkillSelector from './SkillSelector'
 import SkillsPage from './SkillsPage'
 import { isAvatarPath } from './avatarStorage'
@@ -14,8 +15,8 @@ import { isValidGoal, migrateGoals, withCompletion, GOAL_GOLD, GOAL_XP, isComple
 import { FocusGoal } from './GoalsPage'
 import { awardXp, isValidXpLedger, isDifficulty, xpForDifficulty, difficultyLabel, DIFFICULTIES, MAX_SKILLS_PER_ITEM, skillProgress, rankFor, type Difficulty, type XpLedger, type XpSource } from './xpEngine'
 import { suggestSkills, skillName } from './skillSuggest'
-import { GOLD_BY_DIFFICULTY, addGold, chestFor, goldBalance, isGoldLedger, isInventory, isReward, streakLength, xpMultiplier, boostActive, type GameState } from './game'
-import Shop, { Coin } from './Shop'
+import { GOLD_BY_DIFFICULTY, addGold, chestFor, goldBalance, isGoldLedger, isInventory, isReward, streakLength, xpMultiplier, boostActive, goldMultiplier, goldBoostActive, type GameState } from './game'
+import Shop, { Coin, type LastPenalty } from './Shop'
 import { WEEKDAYS, toggleWeekday, isScheduledOn, daysLabel } from './weekdays'
 import { SKILL_GROUPS } from './skillsCatalog'
 import { rollOverTasks as advanceDay, eventOccursOn } from './xpSchedule'
@@ -96,6 +97,7 @@ function isAppData(value:unknown):value is AppData{
  if(d.excused!==undefined&&!isExcused(d.excused))return false
  if(d.widgetKey!==undefined&&(typeof d.widgetKey!=='string'||!/^[a-f0-9]{40}$/.test(d.widgetKey)))return false
  if(d.memos!==undefined&&(!Array.isArray(d.memos)||d.memos.length>2000||!d.memos.every(isMemo)))return false
+ if(d.goldBoostUntil!==undefined&&(typeof d.goldBoostUntil!=='string'||Number.isNaN(Date.parse(d.goldBoostUntil))))return false
  if(d.boostUntil!==undefined&&(typeof d.boostUntil!=='string'||Number.isNaN(Date.parse(d.boostUntil))))return false
  if(d.legacyXpLedger!==undefined&&!isValidXpLedger(d.legacyXpLedger))return false
  const validDays=(days:unknown)=>days===undefined||(Array.isArray(days)&&days.length>=1&&days.length<=7&&days.every(day=>Number.isInteger(day)&&day>=0&&day<=6)&&new Set(days).size===days.length)
@@ -204,18 +206,18 @@ function applyGoals(prev:AppData,nextGoals:Goal[]):AppData{
   for(const month of monthlyWins(g)){
    if(before&&monthlyWins(before).includes(month))continue
    if(g.skillIds?.length)xpLedger=awardXp(xpLedger,`goal:${g.id}:${month}`,'goal',g.skillIds,GOAL_XP[difficulty]*xpMultiplier(prev))
-   goldLedger=addGold(goldLedger,`gold:goal:${g.id}:${month}`,GOAL_GOLD[difficulty],`Objectif du mois : ${g.title}`)
+   goldLedger=addGold(goldLedger,`gold:goal:${g.id}:${month}`,GOAL_GOLD[difficulty]*goldMultiplier(prev),`Objectif du mois : ${g.title}`)
   }
   if(!g.completedOn||before?.completedOn||!isComplete(g,today))continue
   if(g.skillIds?.length)xpLedger=awardXp(xpLedger,`goal:${g.id}`,'goal',g.skillIds,GOAL_XP[difficulty]*xpMultiplier(prev))
-  goldLedger=addGold(goldLedger,`gold:goal:${g.id}`,GOAL_GOLD[difficulty],`Objectif : ${g.title}`)
+  goldLedger=addGold(goldLedger,`gold:goal:${g.id}`,GOAL_GOLD[difficulty]*goldMultiplier(prev),`Objectif : ${g.title}`)
  }
  return {...prev,goals,xpLedger,goldLedger}
 }
 /** Récompense d'une validation : XP (doublée pendant un boost) + or selon la difficulté. Une seule fois par clé. */
 function earn(prev:AppData,key:string,source:XpSource,skillIds:SkillId[]|undefined,difficulty:Difficulty|undefined,label:string):Partial<AppData>{
  if(!skillIds?.length||prev.xpLedger?.events.some(e=>e.key===key))return {}
- return {xpLedger:awardXp(prev.xpLedger,key,source,skillIds,xpForDifficulty(difficulty)*xpMultiplier(prev)),goldLedger:addGold(prev.goldLedger,`gold:${key}`,GOLD_BY_DIFFICULTY[difficulty??'moyen'],label)}
+ return {xpLedger:awardXp(prev.xpLedger,key,source,skillIds,xpForDifficulty(difficulty)*xpMultiplier(prev)),goldLedger:addGold(prev.goldLedger,`gold:${key}`,GOLD_BY_DIFFICULTY[difficulty??'moyen']*goldMultiplier(prev),label)}
 }
 function RoundCheck({done,label,onToggle}:{done:boolean;label:string;onToggle:()=>void}){return <button type="button" className="round-check" aria-pressed={done} aria-label={label} onClick={onToggle}>{done&&<Check size={15} strokeWidth={3}/>}</button>}
 function App(){
@@ -367,6 +369,39 @@ useEffect(() => {
  const [notificationsOpen,setNotificationsOpen]=useState(false)
  const [restOpen,setRestOpen]=useState(false)
  const [widgetOpen,setWidgetOpen]=useState(false)
+ // Objectifs à deux : chacun reçoit sa récompense (or + XP) quand l'objectif commun est atteint, une fois par objectif (ou par mois atteint).
+ const shared=useSharedGoals(session?.user?.id,page==='goals')
+ useEffect(()=>{
+  if(dataLoading||!shared.goals.length)return
+  setData(prev=>{
+   let goldLedger=prev.goldLedger,xpLedger=prev.xpLedger
+   for(const g of shared.goals){
+    const difficulty=g.difficulty??'moderate'
+    const keys=g.monthly?monthlyWins(g).map(m=>`shared:${g.id}:${m}`):isComplete(g,todayKey())?[`shared:${g.id}`]:[]
+    for(const key of keys){
+     if(goldLedger?.events.some(e=>e.key===`gold:${key}`))continue
+     goldLedger=addGold(goldLedger,`gold:${key}`,GOAL_GOLD[difficulty]*goldMultiplier(prev),`Objectif à deux : ${g.title}`)
+     if(g.skillIds?.length)xpLedger=awardXp(xpLedger,key,'goal',g.skillIds,GOAL_XP[difficulty]*xpMultiplier(prev))
+    }
+   }
+   return goldLedger===prev.goldLedger&&xpLedger===prev.xpLedger?prev:{...prev,goldLedger,xpLedger}
+  })
+ },[shared.goals,dataLoading])
+ // Dernière pénalité (pour « Effacer une pénalité » dans la boutique) : on regroupe celles qui partagent la même clé d'élément et de jour.
+ const lastPenalty=useMemo<LastPenalty|undefined>(()=>{
+  const ev=[...(data.xpLedger?.events||[])].filter(e=>e.source==='penalty').sort((a,b)=>a.at.localeCompare(b.at)).pop()
+  if(!ev)return undefined
+  const [kind,itemId,day]=ev.key.split(':')
+  const item=kind==='missed-habit'?data.habits.find(h=>h.id===itemId):kind==='missed-event'?data.events.find(e=>e.id===itemId):data.tasks.find(t=>t.id===itemId)
+  const when=day?new Intl.DateTimeFormat('fr-FR',{day:'numeric',month:'short'}).format(makeDate(day)):''
+  return {key:ev.key,label:`${item?.title??'Élément supprimé'}${when?` (${when})`:''}`,total:Math.round(ev.amountPerSkill*ev.skillIds.length*10)/10}
+ },[data.xpLedger,data.habits,data.events,data.tasks])
+ const erasePenalty=()=>setData(prev=>{
+  const ev=[...(prev.xpLedger?.events||[])].filter(e=>e.source==='penalty').sort((a,b)=>a.at.localeCompare(b.at)).pop()
+  if(!ev||goldBalance(prev.goldLedger)<40)return prev
+  const at=new Date().toISOString()
+  return {...prev,xpLedger:{events:prev.xpLedger!.events.filter(e=>e.key!==ev.key)},goldLedger:addGold(prev.goldLedger,`buy:erase:${at}`,-40,'Effacer une pénalité',at)}
+ })
  const openBackup=()=>{setBackupError('');setRestorePreview(null);setBackupOpen(true);setSettingsOpen(false);setAutoBackups(null);if(session?.user?.id)listBackups(session.user.id).then(setAutoBackups).catch(()=>setAutoBackups([]))}
  const previewAutoBackup=async(backupId:string)=>{
   if(!session?.user?.id)return
@@ -466,20 +501,20 @@ useEffect(() => {
   const done=completed.includes(h.id)
   toggleHabit(h.id)
   if(!done)keepBriefly(h.id)
-  if(!done&&h.skillIds?.length&&!earned(`habit:${h.id}:${todayKey()}`))setXpFlash({id:h.id,amount:xpForDifficulty(h.difficulty)*xpMultiplier(data)*(h.skillIds?.length||1),gold:GOLD_BY_DIFFICULTY[h.difficulty??'moyen']})
+  if(!done&&h.skillIds?.length&&!earned(`habit:${h.id}:${todayKey()}`))setXpFlash({id:h.id,amount:xpForDifficulty(h.difficulty)*xpMultiplier(data)*(h.skillIds?.length||1),gold:GOLD_BY_DIFFICULTY[h.difficulty??'moyen']*goldMultiplier(data)})
  }
  const checkTask=(t:Task)=>{
   const key=t.recurring?`task:${t.id}:${t.date}`:`task:${t.id}`
   toggleTask(t.id)
   if(!t.done)keepBriefly(t.id)
-  if(!t.done&&t.skillIds?.length&&!earned(key))setXpFlash({id:t.id,amount:xpForDifficulty(t.difficulty)*xpMultiplier(data)*(t.skillIds?.length||1),gold:GOLD_BY_DIFFICULTY[t.difficulty??'moyen']})
+  if(!t.done&&t.skillIds?.length&&!earned(key))setXpFlash({id:t.id,amount:xpForDifficulty(t.difficulty)*xpMultiplier(data)*(t.skillIds?.length||1),gold:GOLD_BY_DIFFICULTY[t.difficulty??'moyen']*goldMultiplier(data)})
  }
  const completedEventsToday=data.completedEvents?.[todayKey()]||[]
  const checkEvent=(ev:Event)=>{
   const done=completedEventsToday.includes(ev.id)
   toggleEvent(ev.id)
   if(!done)keepBriefly(ev.id)
-  if(!done&&ev.skillIds?.length&&!earned(`event:${ev.id}:${todayKey()}`))setXpFlash({id:ev.id,amount:xpForDifficulty(ev.difficulty)*xpMultiplier(data)*ev.skillIds.length,gold:GOLD_BY_DIFFICULTY[ev.difficulty??'moyen']})
+  if(!done&&ev.skillIds?.length&&!earned(`event:${ev.id}:${todayKey()}`))setXpFlash({id:ev.id,amount:xpForDifficulty(ev.difficulty)*xpMultiplier(data)*ev.skillIds.length,gold:GOLD_BY_DIFFICULTY[ev.difficulty??'moyen']*goldMultiplier(data)})
  }
  const tomorrowKey=dateKey(addDays(makeDate(todayKey()),1))
  useEffect(()=>{if(!goalBanner)return;const timer=window.setTimeout(()=>setGoalBanner(null),4200);return()=>window.clearTimeout(timer)},[goalBanner])
@@ -597,7 +632,7 @@ useEffect(() => {
      </section>
      <DueMemos memos={data.memos||[]} now={nowStamp} onChange={updateMemo}/>
      {(dayTotal>0||restsToday.length>0)&&<div className="day-progress">
-      {dayTotal>0&&<div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>}{(boostActive(data)||data.protectedDays?.includes(todayKey())||restsToday.length>0)&&<div className="game-status">{restsToday.length>0&&<button type="button" className="game-chip" onClick={()=>setRestOpen(true)}>Mode repos · {restSkillsLabel([...new Set(restsToday.flatMap(r=>r.skillIds))])}</button>}{boostActive(data)&&<span>Boost XP ×2 jusqu’à {new Date(data.boostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{data.protectedDays?.includes(todayKey())&&<span>Journée protégée par un joker</span>}</div>}
+      {dayTotal>0&&<div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>}{(boostActive(data)||goldBoostActive(data)||data.protectedDays?.includes(todayKey())||restsToday.length>0)&&<div className="game-status">{goldBoostActive(data)&&<span>Or ×2 jusqu’à {new Date(data.goldBoostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{restsToday.length>0&&<button type="button" className="game-chip" onClick={()=>setRestOpen(true)}>Mode repos · {restSkillsLabel([...new Set(restsToday.flatMap(r=>r.skillIds))])}</button>}{boostActive(data)&&<span>Boost XP ×2 jusqu’à {new Date(data.boostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{data.protectedDays?.includes(todayKey())&&<span>Journée protégée par un joker</span>}</div>}
       {dayTotal>0&&<div className="bar" role="progressbar" aria-label="Progression du jour" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dayProgress}><div style={{width:`${dayProgress}%`}}/></div>}
      </div>}
      {focusGoal&&<FocusGoal goal={focusGoal} today={todayKey()} onOpen={()=>go('goals')}/>}
@@ -682,7 +717,7 @@ useEffect(() => {
     </>}
 
     {page==='goals'&&<>
-     <GoalsPage goals={data.goals||[]} today={todayKey()} focusGoalId={data.focusGoalId} userId={session?.user?.id} invitationId={inviteId||undefined} onInviteDone={()=>{setInviteId('');window.history.replaceState(null,'',window.location.pathname)}}
+     <GoalsPage goals={data.goals||[]} today={todayKey()} focusGoalId={data.focusGoalId} userId={session?.user?.id} shared={shared} invitationId={inviteId||undefined} onInviteDone={()=>{setInviteId('');window.history.replaceState(null,'',window.location.pathname)}}
       onChange={goals=>{const today=todayKey();const prevGoals=data.goals||[];const won=goals.map(g=>withCompletion(g,today)).find(g=>{const b=prevGoals.find(x=>x.id===g.id);return (g.completedOn&&!b?.completedOn)||monthlyWins(g).length>(b?monthlyWins(b).length:0)});setData(prev=>applyGoals(prev,goals));if(won)setGoalBanner(won.title)}}
       onFocus={id=>setData(prev=>({...prev,focusGoalId:id}))}/>
     </>}
@@ -731,7 +766,7 @@ useEffect(() => {
   {widgetOpen&&<Modal title="Widget iPhone" onClose={()=>setWidgetOpen(false)}><WidgetSettings widgetKey={data.widgetKey} onKey={key=>setData(prev=>({...prev,widgetKey:key}))}/></Modal>}
   {restOpen&&<Modal title="Mode repos" onClose={()=>setRestOpen(false)}><RestMode periods={data.restPeriods||[]} today={todayKey()} newId={id} onChange={next=>setData(prev=>({...prev,restPeriods:next}))}/></Modal>}
   {notificationsOpen&&session?.user?.id&&<Modal title="Notifications" onClose={()=>setNotificationsOpen(false)}><NotificationSettings userId={session.user.id} prefs={data.notifications} onChange={next=>setData(prev=>({...prev,notifications:next}))}/></Modal>}
-  {shopOpen&&<Modal title="Boutique" onClose={()=>setShopOpen(false)}><Shop state={data} today={todayKey()} onChange={next=>setData(prev=>({...prev,...next}))}/></Modal>}
+  {shopOpen&&<Modal title="Boutique" onClose={()=>setShopOpen(false)}><Shop state={data} today={todayKey()} penalty={lastPenalty} onErase={erasePenalty} onChange={next=>setData(prev=>({...prev,...next}))}/></Modal>}
   {timeZoneOpen&&<Modal title="Fuseau horaire" onClose={()=>setTimeZoneOpen(false)}><TimeZoneSettings value={data.timeZone} onChange={zone=>setData(prev=>{const next={...prev};if(zone)next.timeZone=zone;else delete next.timeZone;return next})}/></Modal>}
   {appearanceOpen&&<Modal title="Apparence" onClose={()=>setAppearanceOpen(false)}><AppearanceSettings value={appearance} onChange={updateAppearance}/></Modal>}
   {backupOpen&&<Modal title="Mes sauvegardes" onClose={closeBackup}><div className="backup-panel"><p className="backup-lead">Vos données sont synchronisées avec votre compte. Exportez une copie pour disposer d’une sauvegarde indépendante.</p><div className="backup-stat"><ShieldCheck size={20}/><span><strong>{data.habits.length} habitudes · {data.tasks.length} tâches · {data.events.length} activités · {(data.goals||[]).length} objectifs</strong><small>Votre progression quotidienne est également incluse.</small></span></div><button type="button" className="backup-action backup-export" onClick={exportBackup}><Download size={19}/><span><strong>Exporter ma sauvegarde</strong><small>Télécharger un fichier Forma (.json)</small></span></button><label className="backup-action backup-import"><Upload size={19}/><span><strong>Importer une sauvegarde</strong><small>Choisir un fichier Forma (.json)</small></span><input type="file" accept=".json,application/json" onChange={e=>{void readBackup(e.target.files?.[0]);e.target.value=''}}/></label><div className="auto-backups"><p className="auto-backups-title"><History size={16}/> Sauvegardes automatiques</p>{autoBackups===null?<p className="settings-hint">Chargement…</p>:autoBackups.length===0?<p className="settings-hint">Aucune pour l’instant. Forma en crée une chaque semaine à l’ouverture et garde les 8 dernières.</p>:<ul>{autoBackups.map(b=><li key={b.id}><span>{new Date(b.created_at).toLocaleString('fr-FR',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} <small>{b.reason}</small></span><button type="button" className="text-action" onClick={()=>{void previewAutoBackup(b.id)}}>Voir</button></li>)}</ul>}</div>{backupError&&<p role="alert" className="backup-error">{backupError}</p>}{restorePreview&&<div className="backup-preview"><strong>Sauvegarde prête à restaurer</strong><p>{restorePreview.habits.length} habitudes · {restorePreview.tasks.length} tâches · {restorePreview.events.length} activités</p><p>Attention : la restauration remplacera les données de votre compte sur tous vos appareils. Une copie de l’état actuel est gardée dans les sauvegardes automatiques.</p><div className="backup-actions"><button type="button" className="delete-cancel" onClick={()=>setRestorePreview(null)}>Annuler</button><button type="button" className="backup-confirm" onClick={()=>{void restoreBackup()}} disabled={restoringBackup}>{restoringBackup?"Restauration…":"Restaurer mes données"}</button></div></div>}<p className="backup-footnote">Ce fichier reste sous votre contrôle. Vos données sont synchronisées via votre compte Supabase.</p></div></Modal>}
