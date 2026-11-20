@@ -51,4 +51,11 @@ assert.equal(G.chestFor(7, true, { events: [{ key: 'chest:7:2026-11-08', amount:
 assert.equal(G.chestFor(8, true, undefined, '2026-11-08'), null)
 assert.equal(G.chestFor(7, false, undefined, '2026-11-08'), null, 'série pas encore prolongée aujourd’hui')
 
+// Nouveaux bonus : or ×2, coffre mystère (moyenne < prix), effacer = géré par l'app.
+{ const st = { goldLedger: { events: [{ key: 'g', amount: 300, at: '2026-11-20T10:00:00Z', label: 'x' }] } }
+  const now = new Date('2026-11-20T10:00:00Z')
+  const gb = G.buy(st, { kind: 'perk', id: 'goldboost' }, now); assert.equal(G.goldBalance(gb.goldLedger), 200); assert.equal(G.goldMultiplier(gb, now), 2)
+  const ch = G.buy(st, { kind: 'perk', id: 'chest' }, now, 0.99); assert.equal(G.goldBalance(ch.goldLedger), 300 - 80 + G.chestRoll(0.99)); assert.ok(G.chestRoll(0.9999) <= 200)
+  assert.equal(G.chestRoll(0), 20); let sum = 0; for (let i = 0; i < 1000; i++) sum += G.chestRoll(i / 1000); assert.ok(sum / 1000 < 80, 'moyenne sous le prix')
+  assert.equal(G.buy(st, { kind: 'perk', id: 'erase' }, now), null) }
 console.log('Tests du jeu réussis : or, achats, boost, joker, protection de série, coffres.')

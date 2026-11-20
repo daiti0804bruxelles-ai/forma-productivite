@@ -18,17 +18,30 @@ export type GameState = {
   protectedDays?: string[] // journées couvertes par un joker : aucune pénalité
   frozenDays?: string[] // journées sauvées par une protection de série
   boostUntil?: string // fin du boost XP ×2 (ISO)
+  goldBoostUntil?: string // fin du bonus or ×2 (ISO)
 }
 
 export const GOLD_BY_DIFFICULTY: Record<Difficulty, number> = { facile: 1, moyen: 2, difficile: 4, epique: 8 }
 export const STREAK_CHESTS: Record<number, number> = { 3: 10, 7: 25, 14: 50, 30: 100, 50: 150, 100: 300, 200: 600, 365: 1000 }
 
-export type PerkId = 'joker' | 'shield' | 'boost'
+export type PerkId = 'joker' | 'shield' | 'boost' | 'goldboost' | 'chest' | 'erase'
 export const PERKS: readonly { id: PerkId; name: string; price: number; description: string }[] = [
   { id: 'joker', name: 'Joker', price: 100, description: 'Protège une journée : aucune pénalité ce jour-là (malade, voyage…).' },
   { id: 'shield', name: 'Protection de série', price: 60, description: 'Sauve ta flamme automatiquement un jour où tu n’as rien validé.' },
   { id: 'boost', name: 'Boost XP ×2', price: 120, description: 'Double l’XP gagnée pendant 24 heures, dès l’achat.' },
+  { id: 'goldboost', name: 'Or ×2', price: 100, description: 'Double l’or gagné pendant 24 heures, dès l’achat.' },
+  { id: 'chest', name: 'Coffre mystère', price: 80, description: 'Entre 20 et 200 or, au hasard.' },
+  { id: 'erase', name: 'Effacer une pénalité', price: 40, description: 'Annule ta dernière pénalité : l’XP perdu revient.' },
 ]
+
+/** Coffre mystère : petit gain souvent, gros gain parfois (moyenne légèrement sous le prix). */
+export function chestRoll(random = Math.random()) {
+  const r = random
+  const pickIn = (min: number, max: number, t: number) => Math.round((min + (max - min) * t) / 5) * 5
+  if (r < 0.5) return pickIn(20, 60, r / 0.5)
+  if (r < 0.85) return pickIn(60, 120, (r - 0.5) / 0.35)
+  return pickIn(120, 200, (r - 0.85) / 0.15)
+}
 
 export const goldBalance = (ledger?: GoldLedger) => (ledger?.events ?? []).reduce((sum, e) => sum + e.amount, 0)
 export const goldEarned = (ledger?: GoldLedger) => (ledger?.events ?? []).reduce((sum, e) => sum + Math.max(0, e.amount), 0)
@@ -42,9 +55,12 @@ export function addGold(ledger: GoldLedger | undefined, key: string, amount: num
 
 export const boostActive = (state: GameState, now = new Date()) => Boolean(state.boostUntil && Date.parse(state.boostUntil) > now.getTime())
 export const xpMultiplier = (state: GameState, now = new Date()) => boostActive(state, now) ? 2 : 1
+export const goldBoostActive = (state: GameState, now = new Date()) => Boolean(state.goldBoostUntil && Date.parse(state.goldBoostUntil) > now.getTime())
+export const goldMultiplier = (state: GameState, now = new Date()) => goldBoostActive(state, now) ? 2 : 1
 
-/** Achète un bonus ou une récompense. Renvoie null si l'or est insuffisant. */
-export function buy<T extends GameState>(state: T, item: { kind: 'perk'; id: PerkId } | { kind: 'reward'; reward: Reward }, now = new Date()): T | null {
+/** Achète un bonus ou une récompense. Renvoie null si l'or est insuffisant. (« Effacer une pénalité » se fait dans l'app : il touche au journal XP.) */
+export function buy<T extends GameState>(state: T, item: { kind: 'perk'; id: PerkId } | { kind: 'reward'; reward: Reward }, now = new Date(), random = Math.random()): T | null {
+  if (item.kind === 'perk' && item.id === 'erase') return null
   const price = item.kind === 'perk' ? PERKS.find(p => p.id === item.id)!.price : item.reward.price
   if (!(price > 0) || goldBalance(state.goldLedger) < price) return null
   const at = now.toISOString()
@@ -55,7 +71,17 @@ export function buy<T extends GameState>(state: T, item: { kind: 'perk'; id: Per
     const from = boostActive(state, now) ? Date.parse(state.boostUntil!) : now.getTime()
     return { ...state, goldLedger, boostUntil: new Date(from + 86400000).toISOString() }
   }
-  const inventory = { ...(state.inventory ?? {}), [item.id]: (state.inventory?.[item.id] ?? 0) + 1 }
+  if (item.id === 'goldboost') {
+    const from = goldBoostActive(state, now) ? Date.parse(state.goldBoostUntil!) : now.getTime()
+    return { ...state, goldLedger, goldBoostUntil: new Date(from + 86400000).toISOString() }
+  }
+  if (item.id === 'chest') {
+    const won = chestRoll(random)
+    return { ...state, goldLedger: addGold(goldLedger, `chest-open:${at}`, won, `Coffre mystère : +${won} or`, at) }
+  }
+  if (item.id !== 'joker' && item.id !== 'shield') return null
+  const slot = item.id
+  const inventory = { ...(state.inventory ?? {}), [slot]: (state.inventory?.[slot] ?? 0) + 1 }
   return { ...state, goldLedger, inventory }
 }
 

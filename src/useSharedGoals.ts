@@ -4,10 +4,11 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from './lib/supabase'
-import type { Goal } from './goalModel'
+import type { Goal, GoalDifficulty } from './goalModel'
+import { isSkillId, type SkillId } from './skillsCatalog'
 
 type Space = { id: string; name: string; owner_id: string }
-type Row = { id: string; space_id: string; title: string; unit: string | null; target: number | string; created_by: string; created_at: string; monthly?: boolean }
+type Row = { id: string; space_id: string; title: string; unit: string | null; target: number | string; created_by: string; created_at: string; monthly?: boolean; difficulty?: GoalDifficulty | null; skill_ids?: string[] | null }
 export type SharedEntry = { id: string; goal_id: string; actor_id: string; amount: number; created_at: string }
 export type SharedGoal = Goal & { shared: true; createdBy: string }
 type Invitation = { id: string; invited_email: string; status: string; expires_at: string }
@@ -18,7 +19,8 @@ const message = (e: unknown) => {
   return d?.message || 'Une erreur est survenue.'
 }
 
-export function useSharedGoals(userId: string | undefined) {
+/** `active` : la page Objectifs est ouverte (mise à jour toutes les 20 s), sinon toutes les 5 min. */
+export function useSharedGoals(userId: string | undefined, active = true) {
   const [space, setSpace] = useState<Space | null>(null)
   const [members, setMembers] = useState(0)
   const [rows, setRows] = useState<Row[]>([])
@@ -59,12 +61,17 @@ export function useSharedGoals(userId: string | undefined) {
     let alive = true
     const tick = () => load().then(() => { if (alive) { setLoaded(true); setError('') } }).catch(e => { if (alive) { setLoaded(true); setError(message(e)) } })
     void tick()
-    const timer = window.setInterval(tick, 20000)
+    const timer = window.setInterval(tick, active ? 20000 : 300000)
     const onFocus = () => { if (document.visibilityState === 'visible') void tick() }
     document.addEventListener('visibilitychange', onFocus)
     return () => { alive = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', onFocus) }
-  }, [userId, load])
+  }, [userId, load, active])
 
+  // Colonnes ajoutées récemment (difficulté, compétences) : si la base n'est pas encore à jour, on réessaie sans elles.
+  const missingColumn = (e: unknown) => /column|schema cache/i.test(message(e)) && /difficulty|skill_ids|monthly/.test(message(e))
+  const withFallback = async (full: () => PromiseLike<{ error: unknown }>, basic: () => PromiseLike<{ error: unknown }>) => {
+    const first = await full(); return first.error && missingColumn(first.error) ? basic() : first
+  }
   const run = async (action: () => PromiseLike<{ error: unknown }>) => {
     const { error: e } = await action()
     if (e) { setError(message(e)); return false }
@@ -75,6 +82,7 @@ export function useSharedGoals(userId: string | undefined) {
   const goals: SharedGoal[] = rows.map(r => ({
     id: r.id, title: r.title, mode: 'add', createdOn: r.created_at.slice(0, 10), unit: r.unit?.trim() || undefined,
     start: 0, target: Number(r.target), monthly: r.monthly || undefined, shared: true, createdBy: r.created_by,
+    difficulty: r.difficulty ?? 'moderate', skillIds: (r.skill_ids ?? []).filter(isSkillId).slice(0, 3) as SkillId[],
     history: entries.filter(e => e.goal_id === r.id).map(e => ({ at: e.created_at, value: e.amount })),
   }))
 
@@ -84,10 +92,16 @@ export function useSharedGoals(userId: string | undefined) {
     isMine: (e: SharedEntry) => e.actor_id === userId,
     add: (goalId: string, amount: number) => run(() => supabase.from('shared_goal_entries').insert({ goal_id: goalId, actor_id: userId, amount })),
     removeEntry: (entryId: string) => run(() => supabase.from('shared_goal_entries').delete().eq('id', entryId).eq('actor_id', userId!)),
-    create: (g: { title: string; unit?: string; target: number; monthly?: boolean }) => space ? run(() => supabase.from('shared_goals').insert({
-      space_id: space.id, title: g.title, unit: g.unit ?? null, target: g.target, tracking: 'shared', created_by: userId, ...(g.monthly ? { monthly: true } : {}),
-    })) : Promise.resolve(false),
-    update: (goalId: string, patch: { title?: string; target?: number; monthly?: boolean }) => run(() => supabase.from('shared_goals').update(patch).eq('id', goalId)),
+    create: (g: { title: string; unit?: string; target: number; monthly?: boolean; difficulty?: GoalDifficulty; skillIds?: SkillId[] }) => {
+      if (!space) return Promise.resolve(false)
+      const base = { space_id: space.id, title: g.title, unit: g.unit ?? null, target: g.target, tracking: 'shared', created_by: userId, ...(g.monthly ? { monthly: true } : {}) }
+      return run(() => withFallback(() => supabase.from('shared_goals').insert({ ...base, difficulty: g.difficulty ?? 'moderate', skill_ids: g.skillIds ?? [] }), () => supabase.from('shared_goals').insert(base)))
+    },
+    update: (goalId: string, patch: { title?: string; target?: number; monthly?: boolean; difficulty?: GoalDifficulty; skillIds?: SkillId[] }) => {
+      const { skillIds, difficulty, ...basic } = patch
+      const full = { ...basic, ...(difficulty ? { difficulty } : {}), ...(skillIds ? { skill_ids: skillIds } : {}) }
+      return run(() => withFallback(() => supabase.from('shared_goals').update(full).eq('id', goalId), () => supabase.from('shared_goals').update(basic).eq('id', goalId)))
+    },
     remove: (goalId: string) => run(() => supabase.from('shared_goals').delete().eq('id', goalId)),
     createSpace: () => run(() => supabase.from('shared_spaces').insert({ name: 'Notre espace', owner_id: userId })),
     invite: async (email: string) => {
