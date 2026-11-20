@@ -838,10 +838,9 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 .together-icon { vertical-align: -1px; }
 small.is-late { color: var(--danger); }
 
-.together-option { display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: transparent; color: var(--text); font: inherit; text-align: left; }
-.together-option .round-check { pointer-events: none; }
-.together-option .round-check[data-checked='true'] { background: var(--fill); border-color: var(--fill-border); color: var(--on-fill); }
-.together-copy { display: grid; gap: 2px; min-width: 0; }
-.together-copy strong { font-size: .95rem; font-weight: 600; }
-.together-copy small { color: var(--text-2); font-size: .8rem; line-height: 1.35; }
+.together-option { display: inline-flex; align-items: center; gap: 9px; justify-self: start; width: fit-content; padding: 6px 2px; border: 0; background: transparent; color: var(--text-2); font: inherit; font-size: .92rem; font-weight: 500; transition: color .15s ease; }
+.together-option.is-on { color: var(--text); }
+.together-box { display: grid; place-items: center; width: 20px; height: 20px; border: 1.8px solid var(--ring); border-radius: 999px; color: var(--on-fill); transition: background .15s ease, border-color .15s ease; }
+.together-option.is-on .together-box { background: var(--fill); border-color: var(--fill-border); }
+.together-option.is-on svg:not(.together-box svg) { color: var(--accent); }
 .row-open { cursor: pointer; }
