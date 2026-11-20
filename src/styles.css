@@ -834,7 +834,13 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 
 .shop-result { margin: -4px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-ink); font-size: .85rem; }
 
-/* Tâches à deux */
-.shared-tasks { margin-top: 14px; }
-.today-tasks .shared-tasks .section-head h2 { font-size: 1rem; }
+/* Tâches faites ensemble : mention discrète */
+.together-icon { vertical-align: -1px; }
 small.is-late { color: var(--danger); }
+
+.together-option { display: inline-flex; align-items: center; gap: 9px; justify-self: start; width: fit-content; padding: 6px 2px; border: 0; background: transparent; color: var(--text-2); font: inherit; font-size: .92rem; font-weight: 500; transition: color .15s ease; }
+.together-option.is-on { color: var(--text); }
+.together-box { display: grid; place-items: center; width: 20px; height: 20px; border: 1.8px solid var(--ring); border-radius: 999px; color: var(--on-fill); transition: background .15s ease, border-color .15s ease; }
+.together-option.is-on .together-box { background: var(--fill); border-color: var(--fill-border); }
+.together-option.is-on svg:not(.together-box svg) { color: var(--accent); }
+.row-open { cursor: pointer; }

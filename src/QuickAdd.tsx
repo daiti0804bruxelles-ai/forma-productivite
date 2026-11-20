@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { X } from 'lucide-react'
+import TogetherOption from './TogetherOption'
 import SkillSelector from './SkillSelector'
 import { suggestSkills } from './skillSuggest'
 import type { SkillId } from './skillsCatalog'
@@ -11,7 +12,7 @@ import { parseQuickText } from './quickParse'
 export type QuickAddType = 'task' | 'habit' | 'event'
 type Period = 'Matin' | 'Après-midi' | 'Soir'
 export type QuickAddPayload =
-  | { type: 'task'; title: string; category: string; date: string; recurring: boolean; difficulty: Difficulty; skillIds: SkillId[] }
+  | { type: 'task'; title: string; category: string; date: string; recurring: boolean; difficulty: Difficulty; skillIds: SkillId[]; together?: boolean }
   | { type: 'habit'; title: string; category: string; period: Period; difficulty: Difficulty; skillIds: SkillId[]; days?: number[] }
   | { type: 'event'; title: string; category: string; date: string; time: string; endTime: string }
 
@@ -23,6 +24,8 @@ type Props = {
   onClose: () => void
   onSubmit: (payload: QuickAddPayload) => void
   onMoreOptions: (type: QuickAddType, title: string) => void
+  /** Un espace « À deux » existe : on peut faire la tâche ensemble. */
+  canShare?: boolean
 }
 
 const TYPES: { id: QuickAddType; label: string }[] = [{ id: 'task', label: 'Tâche' }, { id: 'habit', label: 'Habitude' }, { id: 'event', label: 'Activité' }]
@@ -33,7 +36,8 @@ function Chip({ selected, onClick, children }: { selected: boolean; onClick: () 
   return <button type="button" className="chip" aria-pressed={selected} onClick={onClick}>{children}</button>
 }
 
-export default function QuickAdd({ initialType, today, tomorrow, categories, onClose, onSubmit, onMoreOptions }: Props) {
+export default function QuickAdd({ initialType, today, tomorrow, categories, onClose, onSubmit, onMoreOptions, canShare }: Props) {
+  const [together, setTogether] = useState(false)
   const [type, setType] = useState<QuickAddType>(initialType)
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState(categories.includes('Travail') ? 'Travail' : categories[0])
@@ -86,7 +90,7 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
     e.preventDefault()
     const clean = cleanTitle
     if (!clean || invalidTime) return
-    if (type === 'task') onSubmit({ type, title: clean, category, date: everyDay ? today : date, recurring: everyDay, difficulty, skillIds: skills })
+    if (type === 'task') onSubmit({ type, title: clean, category, date: everyDay ? today : date, recurring: everyDay && !together, difficulty, skillIds: skills, together: canShare && together ? true : undefined })
     else if (type === 'habit') onSubmit({ type, title: clean, category, period, difficulty, skillIds: skills, days: days.length ? days : undefined })
     else onSubmit({ type, title: clean, category, date, time, endTime })
   }
@@ -125,13 +129,14 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
         <div className="chips">
           <Chip selected={!everyDay && !pickDate && date === today} onClick={() => chooseDay(today)}>Aujourd’hui</Chip>
           <Chip selected={!everyDay && !pickDate && date === tomorrow} onClick={() => chooseDay(tomorrow)}>Demain</Chip>
-          {type === 'task' && <Chip selected={everyDay} onClick={() => { setEveryDay(true); setPickDate(false); setDate(today) }}>Tous les jours</Chip>}
+          {type === 'task' && !together && <Chip selected={everyDay} onClick={() => { setEveryDay(true); setPickDate(false); setDate(today) }}>Tous les jours</Chip>}
           <Chip selected={!everyDay && (pickDate || (date !== today && date !== tomorrow))} onClick={() => { setPickDate(true); setEveryDay(false) }}>Autre date</Chip>
         </div>
         {type === 'task' && everyDay && <p className="settings-hint">Revient chaque jour · −1,5 XP les jours où elle n’est pas faite.</p>}
         {!everyDay && (pickDate || (date !== today && date !== tomorrow)) && <input type="date" required aria-label="Date" value={date} onChange={e => setDate(e.target.value)} />}
       </div>}
 
+      {type === 'task' && canShare && <TogetherOption checked={together} onChange={next => { setTogether(next); if (next) setEveryDay(false) }} />}
       {type === 'event' && <div className="field-row">
         <label className="field"><span>Début</span><input type="time" required value={time} onChange={e => setTime(e.target.value)} /></label>
         <label className="field"><span>Fin</span><input type="time" required value={endTime} onChange={e => setEndTime(e.target.value)} /></label>

@@ -5,7 +5,9 @@ import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
 import GoalsPage from './GoalsPage'
 import { useSharedGoals } from './useSharedGoals'
-import { SharedTaskComposer, SharedTaskList } from './SharedTasks'
+import { SharedTaskRows } from './SharedTasks'
+import TogetherOption from './TogetherOption'
+import type { SharedTask } from './useSharedGoals'
 import { applySharedTasks } from './sharedTaskRules'
 import SkillSelector from './SkillSelector'
 import SkillsPage from './SkillsPage'
@@ -263,6 +265,8 @@ useEffect(()=>{
   const [mobileMoreOpen,setMobileMoreOpen]=useState(false)
  const [modal,setModal]=useState<'task'|'habit'|'event'|null>(null)
  const [editing,setEditing]=useState<string|null>(null)
+ const [formTogether,setFormTogether]=useState(false)
+ const [editingShared,setEditingShared]=useState<SharedTask|null>(null)
  const [pendingDelete,setPendingDelete]=useState<{type:'task'|'habit'|'event';id:string}|null>(null)
  const [backupOpen,setBackupOpen]=useState(false)
  const [settingsOpen,setSettingsOpen]=useState(false)
@@ -358,11 +362,22 @@ useEffect(() => {
   }
   return next
  })
- const openAdd=(type:'task'|'habit'|'event',date=todayKey())=>{setEditing(null);setFormTitle('');setFormSkillIds([]);setFormCategory('Travail');setFormPeriod('Matin');setFormRecurring(false);setFormDate(date);setFormTime('09:00');setFormEndTime('10:00');setFormRepeatDays([]);setFormDifficulty('moyen');setFormDays([]);setFormSkillsTouched(false);setFormEventXp(false);setModal(type)}
- const openEdit=(type:'task'|'habit'|'event',record:Task|Habit|Event)=>{setEditing(record.id);setFormTitle(record.title);setFormSkillsTouched(true);setFormDifficulty('difficulty' in record&&record.difficulty?record.difficulty:'moyen');setFormDays('days' in record&&record.days?record.days:[]);setFormSkillIds('skillIds' in record ? (record.skillIds || []) : []);setFormEventXp(Boolean('skillIds' in record&&record.skillIds?.length));setFormCategory(record.category);if('period'in record)setFormPeriod(record.period);if('recurring'in record)setFormRecurring(Boolean(record.recurring));if('date'in record)setFormDate(record.date);if('time'in record){setFormRepeatDays(record.repeatDays||[]);setFormTime(record.time);const [hours,minutes]=record.time.split(':').map(Number);setFormEndTime(record.endTime||`${String(Math.min(hours+1,23)).padStart(2,'0')}:${String(hours===23?Math.min(minutes+1,59):minutes).padStart(2,'0')}`)}setModal(type)}
+ const openAdd=(type:'task'|'habit'|'event',date=todayKey())=>{setEditing(null);setEditingShared(null);setFormTogether(false);setFormTitle('');setFormSkillIds([]);setFormCategory('Travail');setFormPeriod('Matin');setFormRecurring(false);setFormDate(date);setFormTime('09:00');setFormEndTime('10:00');setFormRepeatDays([]);setFormDifficulty('moyen');setFormDays([]);setFormSkillsTouched(false);setFormEventXp(false);setModal(type)}
+ const openEdit=(type:'task'|'habit'|'event',record:Task|Habit|Event)=>{setEditing(record.id);setEditingShared(null);setFormTogether(false);setFormTitle(record.title);setFormSkillsTouched(true);setFormDifficulty('difficulty' in record&&record.difficulty?record.difficulty:'moyen');setFormDays('days' in record&&record.days?record.days:[]);setFormSkillIds('skillIds' in record ? (record.skillIds || []) : []);setFormEventXp(Boolean('skillIds' in record&&record.skillIds?.length));setFormCategory(record.category);if('period'in record)setFormPeriod(record.period);if('recurring'in record)setFormRecurring(Boolean(record.recurring));if('date'in record)setFormDate(record.date);if('time'in record){setFormRepeatDays(record.repeatDays||[]);setFormTime(record.time);const [hours,minutes]=record.time.split(':').map(Number);setFormEndTime(record.endTime||`${String(Math.min(hours+1,23)).padStart(2,'0')}:${String(hours===23?Math.min(minutes+1,59):minutes).padStart(2,'0')}`)}setModal(type)}
  // XP d'une activité : compétences + difficulté si activé. createdOn = début des pénalités (jamais rétroactives).
  const eventXpFields=(previous?:Event)=>formEventXp&&formSkillIds.length?{skillIds:formSkillIds,difficulty:formDifficulty,createdOn:previous?.skillIds?.length&&previous.createdOn?previous.createdOn:todayKey()}:{skillIds:undefined,difficulty:undefined,createdOn:undefined}
- const submit=(e:FormEvent)=>{e.preventDefault();if(!formTitle.trim()||!modal)return;if(modal==='event'&&formEndTime<=formTime)return;const title=formTitle.trim();if(modal==='habit'){setData(prev=>({...prev,habits:editing?prev.habits.map(h=>h.id===editing?{...h,title,period:formPeriod,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty,days:formDays.length?formDays:undefined}:h):[...prev.habits,{id:id(),title,period:formPeriod,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty,days:formDays.length?formDays:undefined,createdOn:todayKey()}]}))}if(modal==='task'){setData(prev=>({...prev,tasks:editing?prev.tasks.map(t=>t.id===editing?{...t,title,date:formDate,dueDate:formDate===t.date?t.dueDate:undefined,recurring:formRecurring,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty}:t):[...prev.tasks,{id:id(),title,date:formDate,recurring:formRecurring,category:formCategory,done:false,skillIds:formSkillIds,difficulty:formDifficulty,createdOn:todayKey()}]}))}if(modal==='event'){setData(prev=>({...prev,events:editing?prev.events.map(ev=>ev.id===editing?{...ev,title,date:formDate,time:formTime,endTime:formEndTime,repeatDays:formRepeatDays.length?formRepeatDays:undefined,category:formCategory,...eventXpFields(ev)}:ev):[...prev.events,{id:id(),title,date:formDate,time:formTime,endTime:formEndTime,category:formCategory,repeatDays:formRepeatDays.length?formRepeatDays:undefined,...eventXpFields()}]}))}setModal(null)}
+ // Tâche faite ensemble : ouverte dans le même formulaire que les autres tâches.
+ const openEditShared=(t:SharedTask)=>{setEditing(null);setEditingShared(t);setFormTogether(true);setFormTitle(t.title);setFormDate(t.due_date);setFormDifficulty(t.difficulty);setFormSkillIds(t.skill_ids.filter(isSkillId) as SkillId[]);setFormSkillsTouched(true);setFormRecurring(false);setFormCategory('Travail');setModal('task')}
+ /** Enregistrement d'une tâche « ensemble » (création, modification, ou passage perso ↔ ensemble). Renvoie true si traité. */
+ const submitTogether=(title:string)=>{
+  if(modal!=='task')return false
+  const fields={title,due_date:formDate,difficulty:formDifficulty,skill_ids:formSkillIds}
+  if(editingShared&&formTogether){void shared.updateTask(editingShared,fields);return true}
+  if(editingShared&&!formTogether){setData(prev=>({...prev,tasks:[...prev.tasks,{id:id(),title,date:formDate,recurring:formRecurring,category:formCategory,done:false,skillIds:formSkillIds,difficulty:formDifficulty,createdOn:todayKey()}]}));void shared.removeTask(editingShared);return true}
+  if(formTogether){void shared.addTask(fields).then(ok=>{if(ok&&editing)setData(prev=>({...prev,tasks:prev.tasks.filter(t=>t.id!==editing)}))});return true}
+  return false
+ }
+ const submit=(e:FormEvent)=>{e.preventDefault();if(!formTitle.trim()||!modal)return;if(submitTogether(formTitle.trim())){setModal(null);return}if(modal==='event'&&formEndTime<=formTime)return;const title=formTitle.trim();if(modal==='habit'){setData(prev=>({...prev,habits:editing?prev.habits.map(h=>h.id===editing?{...h,title,period:formPeriod,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty,days:formDays.length?formDays:undefined}:h):[...prev.habits,{id:id(),title,period:formPeriod,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty,days:formDays.length?formDays:undefined,createdOn:todayKey()}]}))}if(modal==='task'){setData(prev=>({...prev,tasks:editing?prev.tasks.map(t=>t.id===editing?{...t,title,date:formDate,dueDate:formDate===t.date?t.dueDate:undefined,recurring:formRecurring,category:formCategory,skillIds:formSkillIds,difficulty:formDifficulty}:t):[...prev.tasks,{id:id(),title,date:formDate,recurring:formRecurring,category:formCategory,done:false,skillIds:formSkillIds,difficulty:formDifficulty,createdOn:todayKey()}]}))}if(modal==='event'){setData(prev=>({...prev,events:editing?prev.events.map(ev=>ev.id===editing?{...ev,title,date:formDate,time:formTime,endTime:formEndTime,repeatDays:formRepeatDays.length?formRepeatDays:undefined,category:formCategory,...eventXpFields(ev)}:ev):[...prev.events,{id:id(),title,date:formDate,time:formTime,endTime:formEndTime,category:formCategory,repeatDays:formRepeatDays.length?formRepeatDays:undefined,...eventXpFields()}]}))}setModal(null)}
  const deleteItem=(type:'task'|'habit'|'event',itemId:string)=>setPendingDelete({type,id:itemId})
  const confirmDelete=()=>{if(!pendingDelete)return;const {type,id:itemId}=pendingDelete;setData(prev=>type==='task'?{...prev,tasks:prev.tasks.filter(t=>t.id!==itemId)}:type==='event'?{...prev,events:prev.events.filter(e=>e.id!==itemId)}:{...prev,habits:prev.habits.filter(h=>h.id!==itemId)});setPendingDelete(null);setModal(null)}
  const [autoBackups,setAutoBackups]=useState<BackupInfo[]|null>(null)
@@ -373,7 +388,6 @@ useEffect(() => {
  const [widgetOpen,setWidgetOpen]=useState(false)
  // Objectifs à deux : chacun reçoit sa récompense (or + XP) quand l'objectif commun est atteint, une fois par objectif (ou par mois atteint).
  const shared=useSharedGoals(session?.user?.id,page==='goals'||page==='dashboard'||page==='tasks')
- const [sharedTaskOpen,setSharedTaskOpen]=useState(false)
  useEffect(()=>{
   if(dataLoading||(!shared.goals.length&&!shared.tasks.length))return
   setData(prev=>{
@@ -527,7 +541,8 @@ useEffect(() => {
  // Reporter à demain : la tâche n'est plus due aujourd'hui (pas de pénalité de retard pour aujourd'hui).
  const postponeTask=(taskId:string)=>{setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId&&!t.recurring?{...t,date:tomorrowKey,dueDate:undefined}:t)}));keepBriefly(taskId)}
  const handleQuickAdd=(item:QuickAddPayload)=>{
-  if(item.type==='task')setData(prev=>({...prev,tasks:[...prev.tasks,{id:id(),title:item.title,date:item.date,recurring:item.recurring,category:item.category,done:false,skillIds:item.skillIds,difficulty:item.difficulty,createdOn:todayKey()}]}))
+  if(item.type==='task'&&item.together){void shared.addTask({title:item.title,due_date:item.date,difficulty:item.difficulty,skill_ids:item.skillIds})}
+  else if(item.type==='task')setData(prev=>({...prev,tasks:[...prev.tasks,{id:id(),title:item.title,date:item.date,recurring:item.recurring,category:item.category,done:false,skillIds:item.skillIds,difficulty:item.difficulty,createdOn:todayKey()}]}))
   else if(item.type==='habit')setData(prev=>({...prev,habits:[...prev.habits,{id:id(),title:item.title,period:item.period,category:item.category,skillIds:item.skillIds,difficulty:item.difficulty,days:item.days,createdOn:todayKey()}]}))
   else setData(prev=>({...prev,events:[...prev.events,{id:id(),title:item.title,date:item.date,time:item.time,endTime:item.endTime,category:item.category}]}))
   setQuickAdd(null)
@@ -557,6 +572,7 @@ useEffect(() => {
   return {...prev,excused:next.length?{...kept,[day]:next}:kept}})
  const pausedTag=(item:{id:string;skillIds?:readonly string[]},done:boolean)=>!done&&pausedToday(item)?<span className="paused-tag"> · {excusedToday(item.id)?'Excusé':'En repos'}</span>:null
  const counts=<T extends {id:string;skillIds?:readonly string[]}>(list:T[],isDone:(x:T)=>boolean)=>list.filter(x=>isDone(x)||!pausedToday(x))
+ const sharedShown=shared.tasks.filter(t=>taskFilter==='À faire'?!t.done_at:Boolean(t.done_at)).length
  const sharedToday=shared.tasks.filter(t=>t.due_date<=todayKey()&&(!t.done_at||new Date(t.done_at).toDateString()===new Date().toDateString()))
  const dayDone=sharedToday.filter(t=>t.done_at).length+doneTasks+habitsDone+xpEventsToday.filter(ev=>completedEventsToday.includes(ev.id)).length
  const dayTotal=sharedToday.length+counts(todaysTasks,t=>t.done).length+counts(todaysHabits,h=>completed.includes(h.id)).length+counts(xpEventsToday,ev=>completedEventsToday.includes(ev.id)).length
@@ -650,14 +666,13 @@ useEffect(() => {
      </section>
      <section className="list-section today-tasks">
       <div className="section-head"><h2>Tâches</h2><button type="button" className="text-action" onClick={()=>go('tasks')}>Tout voir <ArrowRight size={15}/></button></div>
-      <div className="list-card">{visibleTasks.length?visibleTasks.map(t=><SwipeRow key={t.id} className={`${leaving.includes(t.id)&&!showDone?'is-leaving':''} ${!t.done&&pausedToday(t)?'is-paused':''}`} done={t.done} onComplete={()=>checkTask(t)} onPostpone={!t.recurring&&!t.done?()=>postponeTask(t.id):undefined} onExcuse={t.recurring&&!t.done&&(excusedToday(t.id)||!pausedToday(t))?()=>toggleExcuse(t.id):undefined} excused={excusedToday(t.id)} onDelete={()=>deleteItem('task',t.id)}>
+      <div className="list-card">{visibleTasks.length||sharedToday.length?<>{visibleTasks.map(t=><SwipeRow key={t.id} className={`${leaving.includes(t.id)&&!showDone?'is-leaving':''} ${!t.done&&pausedToday(t)?'is-paused':''}`} done={t.done} onComplete={()=>checkTask(t)} onPostpone={!t.recurring&&!t.done?()=>postponeTask(t.id):undefined} onExcuse={t.recurring&&!t.done&&(excusedToday(t.id)||!pausedToday(t))?()=>toggleExcuse(t.id):undefined} excused={excusedToday(t.id)} onEdit={!t.done?()=>openEdit('task',t):undefined} onDelete={()=>deleteItem('task',t.id)}>
        <div className="check-row">
         <RoundCheck done={t.done} label={`${t.done?'Rouvrir':'Terminer'} ${t.title}`} onToggle={()=>checkTask(t)}/>
         <div className="row-copy"><span className={t.done?'is-done':''}>{t.title}</span><small>{t.category}{t.recurring?' · chaque jour':''}{subtaskCount(t)?` · ${subtaskCount(t)}`:''}{pausedTag(t,t.done)}</small></div>
         {xpFlash?.id===t.id&&<span className="xp-flash">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}
        </div>
-      </SwipeRow>):<Empty message={orderedTodayTasks.length?'Toutes tes tâches du jour sont faites.':'Aucune tâche pour aujourd’hui.'}/>}</div>
-      <SharedTaskList shared={shared} today={todayKey()} mode="today" onNew={()=>setSharedTaskOpen(true)}/>
+      </SwipeRow>)}<SharedTaskRows shared={shared} today={todayKey()} mode="today" onEdit={openEditShared}/></>:<Empty message={orderedTodayTasks.length?'Toutes tes tâches du jour sont faites.':'Aucune tâche pour aujourd’hui.'}/>}</div>
      </section>
      <section className="list-section today-habits">
       <div className="section-head"><h2>Habitudes</h2><button type="button" className="text-action" onClick={()=>go('habits')}>Gérer <ArrowRight size={15}/></button></div>
@@ -699,7 +714,7 @@ useEffect(() => {
      <section className="page-intro"><div><h1>Mes tâches</h1></div><button type="button" className="primary-btn desktop-only" onClick={()=>openAdd('task')}><Plus size={18}/> Nouvelle tâche</button></section>
      <div className="list-toolbar">
       <div className="segmented" role="tablist" aria-label="État des tâches">{(['À faire','Terminées'] as const).map(f=><button type="button" role="tab" aria-selected={taskFilter===f} key={f} onClick={()=>setTaskFilter(f)}>{f}</button>)}</div>
-      <span className="count-label">{displayedTasks.length} tâche{displayedTasks.length!==1?'s':''} {taskFilter==='À faire'?'restante'+(displayedTasks.length!==1?'s':''):'terminée'+(displayedTasks.length!==1?'s':'')}</span>
+      <span className="count-label">{displayedTasks.length+sharedShown} tâche{displayedTasks.length+sharedShown!==1?'s':''} {taskFilter==='À faire'?'restante'+(displayedTasks.length+sharedShown!==1?'s':''):'terminée'+(displayedTasks.length+sharedShown!==1?'s':'')}</span>
      </div>
      <div className="list-card" {...taskSort.listProps('list')}>
       {sortedTaskRows.map(t=><div key={t.id} {...taskSort.rowProps(t.id)} className={`task-item ${taskSort.activeId===t.id?'is-placeholder':''}`}>
@@ -719,9 +734,9 @@ useEffect(() => {
         <form onSubmit={e=>{e.preventDefault();addSubtask(t.id)}} className="subtask-form"><input value={subtaskDraft} onChange={e=>setSubtaskDraft(e.target.value)} placeholder="Ajouter une étape…" aria-label="Nouvelle sous-tâche" maxLength={200}/><button type="submit" disabled={!subtaskDraft.trim()} className="secondary-btn">Ajouter</button></form>
        </div>}
       </div>)}
-      {displayedTasks.length===0&&<Empty message={taskFilter==='À faire'?'Tout est fait pour le moment.':'Aucune tâche terminée pour le moment.'}/>}
+      <SharedTaskRows shared={shared} today={todayKey()} mode={taskFilter==='À faire'?'todo':'done'} onEdit={openEditShared}/>
+      {displayedTasks.length+sharedShown===0&&<Empty message={taskFilter==='À faire'?'Tout est fait pour le moment.':'Aucune tâche terminée pour le moment.'}/>}
      </div>
-     <SharedTaskList shared={shared} today={todayKey()} mode="all" onNew={()=>setSharedTaskOpen(true)}/>
      {ghostTask&&<div ref={taskSort.ghostRef} className="sort-ghost" style={taskSort.ghostStyle} aria-hidden="true"><div className="check-row"><span className="drag-handle"><GripVertical size={18}/></span><span className="round-check" aria-pressed={ghostTask.done}/><div className="row-copy"><span className={ghostTask.done?'is-done':''}>{ghostTask.title}</span><small>{ghostTask.category}</small></div></div></div>}
     </>}
 
@@ -770,9 +785,8 @@ useEffect(() => {
    {nav.filter(item=>item.id==='goals'||item.id==='memos'||item.id==='skills').map(item=><button type="button" role="menuitem" key={item.id} className="menu-item" onClick={()=>go(item.id)}><item.icon size={19}/> {item.label}</button>)}
   </div></div>}
 
-  {quickAdd&&<QuickAdd initialType={quickAdd} today={todayKey()} tomorrow={tomorrowKey} categories={categories} onClose={()=>setQuickAdd(null)} onSubmit={handleQuickAdd} onMoreOptions={quickAddMore}/>}
+  {quickAdd&&<QuickAdd canShare={Boolean(shared.space)} initialType={quickAdd} today={todayKey()} tomorrow={tomorrowKey} categories={categories} onClose={()=>setQuickAdd(null)} onSubmit={handleQuickAdd} onMoreOptions={quickAddMore}/>}
   {statsHabitId&&(()=>{const h=data.habits.find(x=>x.id===statsHabitId);return h?<Modal title={h.title} onClose={()=>setStatsHabitId(null)}><HabitStatsView habit={h} completed={data.completedHabits} today={todayKey()} ledger={data.xpLedger}/><div className="form-actions"><button type="button" className="secondary-btn" onClick={()=>{setStatsHabitId(null);openEdit('habit',h)}}><Pencil size={16}/> Modifier</button></div></Modal>:null})()}
-  {sharedTaskOpen&&<SharedTaskComposer shared={shared} today={todayKey()} onClose={()=>setSharedTaskOpen(false)}/>}
   {widgetOpen&&<Modal title="Widget iPhone" onClose={()=>setWidgetOpen(false)}><WidgetSettings widgetKey={data.widgetKey} onKey={key=>setData(prev=>({...prev,widgetKey:key}))}/></Modal>}
   {restOpen&&<Modal title="Mode repos" onClose={()=>setRestOpen(false)}><RestMode periods={data.restPeriods||[]} today={todayKey()} newId={id} onChange={next=>setData(prev=>({...prev,restPeriods:next}))}/></Modal>}
   {notificationsOpen&&session?.user?.id&&<Modal title="Notifications" onClose={()=>setNotificationsOpen(false)}><NotificationSettings userId={session.user.id} prefs={data.notifications} onChange={next=>setData(prev=>({...prev,notifications:next}))}/></Modal>}
@@ -780,11 +794,12 @@ useEffect(() => {
   {timeZoneOpen&&<Modal title="Fuseau horaire" onClose={()=>setTimeZoneOpen(false)}><TimeZoneSettings value={data.timeZone} onChange={zone=>setData(prev=>{const next={...prev};if(zone)next.timeZone=zone;else delete next.timeZone;return next})}/></Modal>}
   {appearanceOpen&&<Modal title="Apparence" onClose={()=>setAppearanceOpen(false)}><AppearanceSettings value={appearance} onChange={updateAppearance}/></Modal>}
   {backupOpen&&<Modal title="Mes sauvegardes" onClose={closeBackup}><div className="backup-panel"><p className="backup-lead">Vos données sont synchronisées avec votre compte. Exportez une copie pour disposer d’une sauvegarde indépendante.</p><div className="backup-stat"><ShieldCheck size={20}/><span><strong>{data.habits.length} habitudes · {data.tasks.length} tâches · {data.events.length} activités · {(data.goals||[]).length} objectifs</strong><small>Votre progression quotidienne est également incluse.</small></span></div><button type="button" className="backup-action backup-export" onClick={exportBackup}><Download size={19}/><span><strong>Exporter ma sauvegarde</strong><small>Télécharger un fichier Forma (.json)</small></span></button><label className="backup-action backup-import"><Upload size={19}/><span><strong>Importer une sauvegarde</strong><small>Choisir un fichier Forma (.json)</small></span><input type="file" accept=".json,application/json" onChange={e=>{void readBackup(e.target.files?.[0]);e.target.value=''}}/></label><div className="auto-backups"><p className="auto-backups-title"><History size={16}/> Sauvegardes automatiques</p>{autoBackups===null?<p className="settings-hint">Chargement…</p>:autoBackups.length===0?<p className="settings-hint">Aucune pour l’instant. Forma en crée une chaque semaine à l’ouverture et garde les 8 dernières.</p>:<ul>{autoBackups.map(b=><li key={b.id}><span>{new Date(b.created_at).toLocaleString('fr-FR',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})} <small>{b.reason}</small></span><button type="button" className="text-action" onClick={()=>{void previewAutoBackup(b.id)}}>Voir</button></li>)}</ul>}</div>{backupError&&<p role="alert" className="backup-error">{backupError}</p>}{restorePreview&&<div className="backup-preview"><strong>Sauvegarde prête à restaurer</strong><p>{restorePreview.habits.length} habitudes · {restorePreview.tasks.length} tâches · {restorePreview.events.length} activités</p><p>Attention : la restauration remplacera les données de votre compte sur tous vos appareils. Une copie de l’état actuel est gardée dans les sauvegardes automatiques.</p><div className="backup-actions"><button type="button" className="delete-cancel" onClick={()=>setRestorePreview(null)}>Annuler</button><button type="button" className="backup-confirm" onClick={()=>{void restoreBackup()}} disabled={restoringBackup}>{restoringBackup?"Restauration…":"Restaurer mes données"}</button></div></div>}<p className="backup-footnote">Ce fichier reste sous votre contrôle. Vos données sont synchronisées via votre compte Supabase.</p></div></Modal>}
-  {modal&&<Modal title={`${editing?'Modifier':'Ajouter'} ${modal==='habit'?'une habitude':modal==='task'?'une tâche':'une activité'}`} onClose={()=>setModal(null)}><form onSubmit={submit} className="modal-form">
+  {modal&&<Modal title={`${editing||editingShared?'Modifier':'Ajouter'} ${modal==='habit'?'une habitude':modal==='task'?'une tâche':'une activité'}`} onClose={()=>setModal(null)}><form onSubmit={submit} className="modal-form">
    <label>Nom<input autoFocus maxLength={100} required placeholder={modal==='habit'?'Ex. : Méditer 10 minutes':modal==='task'?'Ex. : Préparer la présentation':'Ex. : Séance de sport'} value={formTitle} onChange={e=>{const value=e.target.value;setFormTitle(value);if((modal!=='event'||formEventXp)&&!editing&&!formSkillsTouched)setFormSkillIds(value.trim()?suggestSkills(value,formCategory,modal==='habit'||(modal==='event'&&formRepeatDays.length>0)?'habit':'task'):[])}}/></label>
    <label>Catégorie<select value={formCategory} onChange={e=>{const value=e.target.value;setFormCategory(value);if(modal!=='event'&&!editing&&!formSkillsTouched&&formTitle.trim())setFormSkillIds(suggestSkills(formTitle,value,modal==='habit'?'habit':'task'))}}>{categories.map(c=><option key={c}>{c}</option>)}</select></label>
    {modal==='habit'&&<label>Moment de la journée<select value={formPeriod} onChange={e=>setFormPeriod(e.target.value as Period)}>{periods.map(p=><option key={p.name}>{p.name}</option>)}</select></label>}
-   {modal==='task'&&<div className="settings-row boxed"><span><strong>Répéter tous les jours</strong><small>Une nouvelle validation chaque jour</small></span><button type="button" role="switch" className="switch" aria-checked={formRecurring} aria-label="Répéter tous les jours" onClick={()=>setFormRecurring(v=>!v)}><span/></button></div>}
+   {modal==='task'&&shared.space&&<TogetherOption checked={formTogether} onChange={next=>{setFormTogether(next);if(next)setFormRecurring(false)}}/>}
+   {modal==='task'&&!formTogether&&<div className="settings-row boxed"><span><strong>Répéter tous les jours</strong><small>Une nouvelle validation chaque jour</small></span><button type="button" role="switch" className="switch" aria-checked={formRecurring} aria-label="Répéter tous les jours" onClick={()=>setFormRecurring(v=>!v)}><span/></button></div>}
    {modal==='habit'&&<div className="field"><span>Jours {formDays.length?`· ${daysLabel(formDays)}`:'· tous les jours'}</span><div className="day-picker">{WEEKDAYS.map(w=><button key={w.day} type="button" className="day-chip" aria-label={w.name} aria-pressed={isScheduledOn(formDays,w.day)} onClick={()=>setFormDays(days=>toggleWeekday(days,w.day))}>{w.letter}</button>)}</div><small className="settings-hint">Les jours non cochés sont des jours de repos : pas de pénalité.</small></div>}
    {modal!=='event'&&<div className="field"><span>Difficulté</span><div className="chips">{DIFFICULTIES.map(d=><button key={d.id} type="button" className="chip" aria-pressed={formDifficulty===d.id} onClick={()=>setFormDifficulty(d.id)}>{d.label} <small>{d.xp} XP</small></button>)}</div></div>}
    {modal!=='event'&&<SkillSelector value={formSkillIds} onChange={next=>{setFormSkillsTouched(true);setFormSkillIds(next)}} hint={!editing&&!formSkillsTouched?'Suggestion automatique d’après le nom.':undefined}/>}
@@ -801,7 +816,7 @@ useEffect(() => {
      <SkillSelector value={formSkillIds} onChange={next=>{setFormSkillsTouched(true);setFormSkillIds(next)}} hint={!formSkillsTouched?'Suggestion automatique d’après le nom.':undefined}/>
     </>}
    </>}
-   <div className="form-actions">{editing&&<button type="button" className="danger-link" onClick={()=>deleteItem(modal,editing)}><Trash2 size={16}/> Supprimer</button>}<button type="button" className="secondary-btn" onClick={()=>setModal(null)}>Annuler</button><button type="submit" className="primary-btn"><Check size={17}/>{editing?'Enregistrer':'Ajouter'}</button></div>
+   <div className="form-actions">{editing&&<button type="button" className="danger-link" onClick={()=>deleteItem(modal,editing)}><Trash2 size={16}/> Supprimer</button>}{editingShared&&<button type="button" className="danger-link" onClick={()=>{void shared.removeTask(editingShared);setModal(null)}}><Trash2 size={16}/> Supprimer</button>}<button type="button" className="secondary-btn" onClick={()=>setModal(null)}>Annuler</button><button type="submit" className="primary-btn"><Check size={17}/>{editing||editingShared?'Enregistrer':'Ajouter'}</button></div>
   </form></Modal>}
   {goalBanner&&<div className="levelup is-rank goal-win" role="status" aria-live="polite"><span className="levelup-icon"><Sparkles size={18}/></span><span><strong>Objectif atteint !</strong><small>{goalBanner}</small></span></div>}
   {chestBanner&&!levelUps[0]&&!goalBanner&&<div className="levelup is-rank" role="status" aria-live="polite"><span className="levelup-icon"><Sparkles size={18}/></span><span><strong>Coffre de série ouvert !</strong><small>{chestBanner} · {activityStreak} jours d’affilée</small></span></div>}
