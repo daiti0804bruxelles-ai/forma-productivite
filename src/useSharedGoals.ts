@@ -125,6 +125,7 @@ export function useSharedGoals(userId: string | undefined, active = true) {
       setTasks(list => list.map(x => x.id === task.id ? { ...x, done_at: done ? new Date().toISOString() : null, done_by: done ? userId ?? null : null } : x)) // affichage immédiat
       return run(() => supabase.from('shared_tasks').update(done ? { done_at: new Date().toISOString(), done_by: userId } : { done_at: null, done_by: null }).eq('id', task.id))
     },
+    updateTask: (task: SharedTask, patch: { title: string; due_date: string; difficulty: SharedTask['difficulty']; skill_ids: string[] }) => run(() => supabase.from('shared_tasks').update(patch).eq('id', task.id)),
     moveTask: (task: SharedTask, due_date: string) => run(() => supabase.from('shared_tasks').update({ due_date }).eq('id', task.id)),
     removeTask: (task: SharedTask) => { setTasks(list => list.filter(x => x.id !== task.id)); return run(() => supabase.from('shared_tasks').delete().eq('id', task.id)) },
     userId,

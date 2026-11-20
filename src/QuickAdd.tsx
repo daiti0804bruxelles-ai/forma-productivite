@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { X } from 'lucide-react'
+import TogetherOption from './TogetherOption'
 import SkillSelector from './SkillSelector'
 import { suggestSkills } from './skillSuggest'
 import type { SkillId } from './skillsCatalog'
@@ -131,12 +132,11 @@ export default function QuickAdd({ initialType, today, tomorrow, categories, onC
           {type === 'task' && !together && <Chip selected={everyDay} onClick={() => { setEveryDay(true); setPickDate(false); setDate(today) }}>Tous les jours</Chip>}
           <Chip selected={!everyDay && (pickDate || (date !== today && date !== tomorrow))} onClick={() => { setPickDate(true); setEveryDay(false) }}>Autre date</Chip>
         </div>
-        {type === 'task' && canShare && <button type="button" className="chip together-chip" aria-pressed={together} onClick={() => { setTogether(v => !v); setEveryDay(false) }}>Ensemble{together ? ' ✓' : ''}</button>}
-        {type === 'task' && together && <p className="settings-hint">Visible aussi par l’autre membre de ton espace « À deux » : faite dès que l’un de vous la coche.</p>}
         {type === 'task' && everyDay && <p className="settings-hint">Revient chaque jour · −1,5 XP les jours où elle n’est pas faite.</p>}
         {!everyDay && (pickDate || (date !== today && date !== tomorrow)) && <input type="date" required aria-label="Date" value={date} onChange={e => setDate(e.target.value)} />}
       </div>}
 
+      {type === 'task' && canShare && <TogetherOption checked={together} onChange={next => { setTogether(next); if (next) setEveryDay(false) }} />}
       {type === 'event' && <div className="field-row">
         <label className="field"><span>Début</span><input type="time" required value={time} onChange={e => setTime(e.target.value)} /></label>
         <label className="field"><span>Fin</span><input type="time" required value={endTime} onChange={e => setEndTime(e.target.value)} /></label>

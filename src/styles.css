@@ -836,5 +836,12 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 
 /* Tâches faites ensemble : mention discrète */
 .together-icon { vertical-align: -1px; }
-.together-chip { justify-self: start; margin-top: 8px; }
 small.is-late { color: var(--danger); }
+
+.together-option { display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 16px; border: 1px solid var(--line); border-radius: 14px; background: transparent; color: var(--text); font: inherit; text-align: left; }
+.together-option .round-check { pointer-events: none; }
+.together-option .round-check[data-checked='true'] { background: var(--fill); border-color: var(--fill-border); color: var(--on-fill); }
+.together-copy { display: grid; gap: 2px; min-width: 0; }
+.together-copy strong { font-size: .95rem; font-weight: 600; }
+.together-copy small { color: var(--text-2); font-size: .8rem; line-height: 1.35; }
+.row-open { cursor: pointer; }
