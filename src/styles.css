@@ -834,7 +834,7 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 
 .shop-result { margin: -4px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-ink); font-size: .85rem; }
 
-/* Tâches à deux */
-.shared-tasks { margin-top: 14px; }
-.today-tasks .shared-tasks .section-head h2 { font-size: 1rem; }
+/* Tâches faites ensemble : mention discrète */
+.together-icon { vertical-align: -1px; }
+.together-chip { justify-self: start; margin-top: 8px; }
 small.is-late { color: var(--danger); }

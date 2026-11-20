@@ -5,7 +5,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
 import GoalsPage from './GoalsPage'
 import { useSharedGoals } from './useSharedGoals'
-import { SharedTaskComposer, SharedTaskList } from './SharedTasks'
+import { SharedTaskRows } from './SharedTasks'
 import { applySharedTasks } from './sharedTaskRules'
 import SkillSelector from './SkillSelector'
 import SkillsPage from './SkillsPage'
@@ -373,7 +373,6 @@ useEffect(() => {
  const [widgetOpen,setWidgetOpen]=useState(false)
  // Objectifs à deux : chacun reçoit sa récompense (or + XP) quand l'objectif commun est atteint, une fois par objectif (ou par mois atteint).
  const shared=useSharedGoals(session?.user?.id,page==='goals'||page==='dashboard'||page==='tasks')
- const [sharedTaskOpen,setSharedTaskOpen]=useState(false)
  useEffect(()=>{
   if(dataLoading||(!shared.goals.length&&!shared.tasks.length))return
   setData(prev=>{
@@ -527,7 +526,8 @@ useEffect(() => {
  // Reporter à demain : la tâche n'est plus due aujourd'hui (pas de pénalité de retard pour aujourd'hui).
  const postponeTask=(taskId:string)=>{setData(prev=>({...prev,tasks:prev.tasks.map(t=>t.id===taskId&&!t.recurring?{...t,date:tomorrowKey,dueDate:undefined}:t)}));keepBriefly(taskId)}
  const handleQuickAdd=(item:QuickAddPayload)=>{
-  if(item.type==='task')setData(prev=>({...prev,tasks:[...prev.tasks,{id:id(),title:item.title,date:item.date,recurring:item.recurring,category:item.category,done:false,skillIds:item.skillIds,difficulty:item.difficulty,createdOn:todayKey()}]}))
+  if(item.type==='task'&&item.together){void shared.addTask({title:item.title,due_date:item.date,difficulty:item.difficulty,skill_ids:item.skillIds})}
+  else if(item.type==='task')setData(prev=>({...prev,tasks:[...prev.tasks,{id:id(),title:item.title,date:item.date,recurring:item.recurring,category:item.category,done:false,skillIds:item.skillIds,difficulty:item.difficulty,createdOn:todayKey()}]}))
   else if(item.type==='habit')setData(prev=>({...prev,habits:[...prev.habits,{id:id(),title:item.title,period:item.period,category:item.category,skillIds:item.skillIds,difficulty:item.difficulty,days:item.days,createdOn:todayKey()}]}))
   else setData(prev=>({...prev,events:[...prev.events,{id:id(),title:item.title,date:item.date,time:item.time,endTime:item.endTime,category:item.category}]}))
   setQuickAdd(null)
@@ -557,6 +557,7 @@ useEffect(() => {
   return {...prev,excused:next.length?{...kept,[day]:next}:kept}})
  const pausedTag=(item:{id:string;skillIds?:readonly string[]},done:boolean)=>!done&&pausedToday(item)?<span className="paused-tag"> · {excusedToday(item.id)?'Excusé':'En repos'}</span>:null
  const counts=<T extends {id:string;skillIds?:readonly string[]}>(list:T[],isDone:(x:T)=>boolean)=>list.filter(x=>isDone(x)||!pausedToday(x))
+ const sharedShown=shared.tasks.filter(t=>taskFilter==='À faire'?!t.done_at:Boolean(t.done_at)).length
  const sharedToday=shared.tasks.filter(t=>t.due_date<=todayKey()&&(!t.done_at||new Date(t.done_at).toDateString()===new Date().toDateString()))
  const dayDone=sharedToday.filter(t=>t.done_at).length+doneTasks+habitsDone+xpEventsToday.filter(ev=>completedEventsToday.includes(ev.id)).length
  const dayTotal=sharedToday.length+counts(todaysTasks,t=>t.done).length+counts(todaysHabits,h=>completed.includes(h.id)).length+counts(xpEventsToday,ev=>completedEventsToday.includes(ev.id)).length
@@ -650,14 +651,13 @@ useEffect(() => {
      </section>
      <section className="list-section today-tasks">
       <div className="section-head"><h2>Tâches</h2><button type="button" className="text-action" onClick={()=>go('tasks')}>Tout voir <ArrowRight size={15}/></button></div>
-      <div className="list-card">{visibleTasks.length?visibleTasks.map(t=><SwipeRow key={t.id} className={`${leaving.includes(t.id)&&!showDone?'is-leaving':''} ${!t.done&&pausedToday(t)?'is-paused':''}`} done={t.done} onComplete={()=>checkTask(t)} onPostpone={!t.recurring&&!t.done?()=>postponeTask(t.id):undefined} onExcuse={t.recurring&&!t.done&&(excusedToday(t.id)||!pausedToday(t))?()=>toggleExcuse(t.id):undefined} excused={excusedToday(t.id)} onDelete={()=>deleteItem('task',t.id)}>
+      <div className="list-card">{visibleTasks.length||sharedToday.length?<>{visibleTasks.map(t=><SwipeRow key={t.id} className={`${leaving.includes(t.id)&&!showDone?'is-leaving':''} ${!t.done&&pausedToday(t)?'is-paused':''}`} done={t.done} onComplete={()=>checkTask(t)} onPostpone={!t.recurring&&!t.done?()=>postponeTask(t.id):undefined} onExcuse={t.recurring&&!t.done&&(excusedToday(t.id)||!pausedToday(t))?()=>toggleExcuse(t.id):undefined} excused={excusedToday(t.id)} onDelete={()=>deleteItem('task',t.id)}>
        <div className="check-row">
         <RoundCheck done={t.done} label={`${t.done?'Rouvrir':'Terminer'} ${t.title}`} onToggle={()=>checkTask(t)}/>
         <div className="row-copy"><span className={t.done?'is-done':''}>{t.title}</span><small>{t.category}{t.recurring?' · chaque jour':''}{subtaskCount(t)?` · ${subtaskCount(t)}`:''}{pausedTag(t,t.done)}</small></div>
         {xpFlash?.id===t.id&&<span className="xp-flash">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}
        </div>
-      </SwipeRow>):<Empty message={orderedTodayTasks.length?'Toutes tes tâches du jour sont faites.':'Aucune tâche pour aujourd’hui.'}/>}</div>
-      <SharedTaskList shared={shared} today={todayKey()} mode="today" onNew={()=>setSharedTaskOpen(true)}/>
+      </SwipeRow>)}<SharedTaskRows shared={shared} today={todayKey()} mode="today"/></>:<Empty message={orderedTodayTasks.length?'Toutes tes tâches du jour sont faites.':'Aucune tâche pour aujourd’hui.'}/>}</div>
      </section>
      <section className="list-section today-habits">
       <div className="section-head"><h2>Habitudes</h2><button type="button" className="text-action" onClick={()=>go('habits')}>Gérer <ArrowRight size={15}/></button></div>
@@ -699,7 +699,7 @@ useEffect(() => {
      <section className="page-intro"><div><h1>Mes tâches</h1></div><button type="button" className="primary-btn desktop-only" onClick={()=>openAdd('task')}><Plus size={18}/> Nouvelle tâche</button></section>
      <div className="list-toolbar">
       <div className="segmented" role="tablist" aria-label="État des tâches">{(['À faire','Terminées'] as const).map(f=><button type="button" role="tab" aria-selected={taskFilter===f} key={f} onClick={()=>setTaskFilter(f)}>{f}</button>)}</div>
-      <span className="count-label">{displayedTasks.length} tâche{displayedTasks.length!==1?'s':''} {taskFilter==='À faire'?'restante'+(displayedTasks.length!==1?'s':''):'terminée'+(displayedTasks.length!==1?'s':'')}</span>
+      <span className="count-label">{displayedTasks.length+sharedShown} tâche{displayedTasks.length+sharedShown!==1?'s':''} {taskFilter==='À faire'?'restante'+(displayedTasks.length+sharedShown!==1?'s':''):'terminée'+(displayedTasks.length+sharedShown!==1?'s':'')}</span>
      </div>
      <div className="list-card" {...taskSort.listProps('list')}>
       {sortedTaskRows.map(t=><div key={t.id} {...taskSort.rowProps(t.id)} className={`task-item ${taskSort.activeId===t.id?'is-placeholder':''}`}>
@@ -719,9 +719,9 @@ useEffect(() => {
         <form onSubmit={e=>{e.preventDefault();addSubtask(t.id)}} className="subtask-form"><input value={subtaskDraft} onChange={e=>setSubtaskDraft(e.target.value)} placeholder="Ajouter une étape…" aria-label="Nouvelle sous-tâche" maxLength={200}/><button type="submit" disabled={!subtaskDraft.trim()} className="secondary-btn">Ajouter</button></form>
        </div>}
       </div>)}
-      {displayedTasks.length===0&&<Empty message={taskFilter==='À faire'?'Tout est fait pour le moment.':'Aucune tâche terminée pour le moment.'}/>}
+      <SharedTaskRows shared={shared} today={todayKey()} mode={taskFilter==='À faire'?'todo':'done'}/>
+      {displayedTasks.length+sharedShown===0&&<Empty message={taskFilter==='À faire'?'Tout est fait pour le moment.':'Aucune tâche terminée pour le moment.'}/>}
      </div>
-     <SharedTaskList shared={shared} today={todayKey()} mode="all" onNew={()=>setSharedTaskOpen(true)}/>
      {ghostTask&&<div ref={taskSort.ghostRef} className="sort-ghost" style={taskSort.ghostStyle} aria-hidden="true"><div className="check-row"><span className="drag-handle"><GripVertical size={18}/></span><span className="round-check" aria-pressed={ghostTask.done}/><div className="row-copy"><span className={ghostTask.done?'is-done':''}>{ghostTask.title}</span><small>{ghostTask.category}</small></div></div></div>}
     </>}
 
@@ -770,9 +770,8 @@ useEffect(() => {
    {nav.filter(item=>item.id==='goals'||item.id==='memos'||item.id==='skills').map(item=><button type="button" role="menuitem" key={item.id} className="menu-item" onClick={()=>go(item.id)}><item.icon size={19}/> {item.label}</button>)}
   </div></div>}
 
-  {quickAdd&&<QuickAdd initialType={quickAdd} today={todayKey()} tomorrow={tomorrowKey} categories={categories} onClose={()=>setQuickAdd(null)} onSubmit={handleQuickAdd} onMoreOptions={quickAddMore}/>}
+  {quickAdd&&<QuickAdd canShare={Boolean(shared.space)} initialType={quickAdd} today={todayKey()} tomorrow={tomorrowKey} categories={categories} onClose={()=>setQuickAdd(null)} onSubmit={handleQuickAdd} onMoreOptions={quickAddMore}/>}
   {statsHabitId&&(()=>{const h=data.habits.find(x=>x.id===statsHabitId);return h?<Modal title={h.title} onClose={()=>setStatsHabitId(null)}><HabitStatsView habit={h} completed={data.completedHabits} today={todayKey()} ledger={data.xpLedger}/><div className="form-actions"><button type="button" className="secondary-btn" onClick={()=>{setStatsHabitId(null);openEdit('habit',h)}}><Pencil size={16}/> Modifier</button></div></Modal>:null})()}
-  {sharedTaskOpen&&<SharedTaskComposer shared={shared} today={todayKey()} onClose={()=>setSharedTaskOpen(false)}/>}
   {widgetOpen&&<Modal title="Widget iPhone" onClose={()=>setWidgetOpen(false)}><WidgetSettings widgetKey={data.widgetKey} onKey={key=>setData(prev=>({...prev,widgetKey:key}))}/></Modal>}
   {restOpen&&<Modal title="Mode repos" onClose={()=>setRestOpen(false)}><RestMode periods={data.restPeriods||[]} today={todayKey()} newId={id} onChange={next=>setData(prev=>({...prev,restPeriods:next}))}/></Modal>}
   {notificationsOpen&&session?.user?.id&&<Modal title="Notifications" onClose={()=>setNotificationsOpen(false)}><NotificationSettings userId={session.user.id} prefs={data.notifications} onChange={next=>setData(prev=>({...prev,notifications:next}))}/></Modal>}
