@@ -833,3 +833,8 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 .evo-main, .evo-side { display: grid; gap: 14px; min-width: 0; }
 
 .shop-result { margin: -4px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-ink); font-size: .85rem; }
+
+/* Tâches à deux */
+.shared-tasks { margin-top: 14px; }
+.today-tasks .shared-tasks .section-head h2 { font-size: 1rem; }
+small.is-late { color: var(--danger); }

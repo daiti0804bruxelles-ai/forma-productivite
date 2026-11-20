@@ -5,6 +5,8 @@ import type { FormEvent, ReactNode } from 'react'
 import { supabase } from './lib/supabase'
 import GoalsPage from './GoalsPage'
 import { useSharedGoals } from './useSharedGoals'
+import { SharedTaskComposer, SharedTaskList } from './SharedTasks'
+import { applySharedTasks } from './sharedTaskRules'
 import SkillSelector from './SkillSelector'
 import SkillsPage from './SkillsPage'
 import { isAvatarPath } from './avatarStorage'
@@ -370,9 +372,10 @@ useEffect(() => {
  const [restOpen,setRestOpen]=useState(false)
  const [widgetOpen,setWidgetOpen]=useState(false)
  // Objectifs à deux : chacun reçoit sa récompense (or + XP) quand l'objectif commun est atteint, une fois par objectif (ou par mois atteint).
- const shared=useSharedGoals(session?.user?.id,page==='goals')
+ const shared=useSharedGoals(session?.user?.id,page==='goals'||page==='dashboard'||page==='tasks')
+ const [sharedTaskOpen,setSharedTaskOpen]=useState(false)
  useEffect(()=>{
-  if(dataLoading||!shared.goals.length)return
+  if(dataLoading||(!shared.goals.length&&!shared.tasks.length))return
   setData(prev=>{
    let goldLedger=prev.goldLedger,xpLedger=prev.xpLedger
    for(const g of shared.goals){
@@ -384,9 +387,12 @@ useEffect(() => {
      if(g.skillIds?.length)xpLedger=awardXp(xpLedger,key,'goal',g.skillIds,GOAL_XP[difficulty]*xpMultiplier(prev))
     }
    }
+   // Tâches à deux : récompense quand l'un de vous la coche, pénalité de retard pour chacun.
+   const t=applySharedTasks(shared.tasks,xpLedger,goldLedger,{today:todayKey(),xpMult:xpMultiplier(prev),goldMult:goldMultiplier(prev),restPeriods:prev.restPeriods,excused:prev.excused,protectedDays:prev.protectedDays})
+   xpLedger=t.xpLedger;goldLedger=t.goldLedger
    return goldLedger===prev.goldLedger&&xpLedger===prev.xpLedger?prev:{...prev,goldLedger,xpLedger}
   })
- },[shared.goals,dataLoading])
+ },[shared.goals,shared.tasks,dataLoading])
  // Dernière pénalité (pour « Effacer une pénalité » dans la boutique) : on regroupe celles qui partagent la même clé d'élément et de jour.
  const lastPenalty=useMemo<LastPenalty|undefined>(()=>{
   const ev=[...(data.xpLedger?.events||[])].filter(e=>e.source==='penalty').sort((a,b)=>a.at.localeCompare(b.at)).pop()
@@ -551,8 +557,9 @@ useEffect(() => {
   return {...prev,excused:next.length?{...kept,[day]:next}:kept}})
  const pausedTag=(item:{id:string;skillIds?:readonly string[]},done:boolean)=>!done&&pausedToday(item)?<span className="paused-tag"> · {excusedToday(item.id)?'Excusé':'En repos'}</span>:null
  const counts=<T extends {id:string;skillIds?:readonly string[]}>(list:T[],isDone:(x:T)=>boolean)=>list.filter(x=>isDone(x)||!pausedToday(x))
- const dayDone=doneTasks+habitsDone+xpEventsToday.filter(ev=>completedEventsToday.includes(ev.id)).length
- const dayTotal=counts(todaysTasks,t=>t.done).length+counts(todaysHabits,h=>completed.includes(h.id)).length+counts(xpEventsToday,ev=>completedEventsToday.includes(ev.id)).length
+ const sharedToday=shared.tasks.filter(t=>t.due_date<=todayKey()&&(!t.done_at||new Date(t.done_at).toDateString()===new Date().toDateString()))
+ const dayDone=sharedToday.filter(t=>t.done_at).length+doneTasks+habitsDone+xpEventsToday.filter(ev=>completedEventsToday.includes(ev.id)).length
+ const dayTotal=sharedToday.length+counts(todaysTasks,t=>t.done).length+counts(todaysHabits,h=>completed.includes(h.id)).length+counts(xpEventsToday,ev=>completedEventsToday.includes(ev.id)).length
  const dayProgress=dayTotal?Math.round(dayDone/dayTotal*100):0
  const showFab=page==='dashboard'||page==='habits'||page==='tasks'||page==='calendar'
  const subtaskCount=(t:Task)=>{const list=t.subtasks||[];return list.length?`${list.filter(st=>st.done).length}/${list.length}`:''}
@@ -650,6 +657,7 @@ useEffect(() => {
         {xpFlash?.id===t.id&&<span className="xp-flash">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}
        </div>
       </SwipeRow>):<Empty message={orderedTodayTasks.length?'Toutes tes tâches du jour sont faites.':'Aucune tâche pour aujourd’hui.'}/>}</div>
+      <SharedTaskList shared={shared} today={todayKey()} mode="today" onNew={()=>setSharedTaskOpen(true)}/>
      </section>
      <section className="list-section today-habits">
       <div className="section-head"><h2>Habitudes</h2><button type="button" className="text-action" onClick={()=>go('habits')}>Gérer <ArrowRight size={15}/></button></div>
@@ -713,6 +721,7 @@ useEffect(() => {
       </div>)}
       {displayedTasks.length===0&&<Empty message={taskFilter==='À faire'?'Tout est fait pour le moment.':'Aucune tâche terminée pour le moment.'}/>}
      </div>
+     <SharedTaskList shared={shared} today={todayKey()} mode="all" onNew={()=>setSharedTaskOpen(true)}/>
      {ghostTask&&<div ref={taskSort.ghostRef} className="sort-ghost" style={taskSort.ghostStyle} aria-hidden="true"><div className="check-row"><span className="drag-handle"><GripVertical size={18}/></span><span className="round-check" aria-pressed={ghostTask.done}/><div className="row-copy"><span className={ghostTask.done?'is-done':''}>{ghostTask.title}</span><small>{ghostTask.category}</small></div></div></div>}
     </>}
 
@@ -763,6 +772,7 @@ useEffect(() => {
 
   {quickAdd&&<QuickAdd initialType={quickAdd} today={todayKey()} tomorrow={tomorrowKey} categories={categories} onClose={()=>setQuickAdd(null)} onSubmit={handleQuickAdd} onMoreOptions={quickAddMore}/>}
   {statsHabitId&&(()=>{const h=data.habits.find(x=>x.id===statsHabitId);return h?<Modal title={h.title} onClose={()=>setStatsHabitId(null)}><HabitStatsView habit={h} completed={data.completedHabits} today={todayKey()} ledger={data.xpLedger}/><div className="form-actions"><button type="button" className="secondary-btn" onClick={()=>{setStatsHabitId(null);openEdit('habit',h)}}><Pencil size={16}/> Modifier</button></div></Modal>:null})()}
+  {sharedTaskOpen&&<SharedTaskComposer shared={shared} today={todayKey()} onClose={()=>setSharedTaskOpen(false)}/>}
   {widgetOpen&&<Modal title="Widget iPhone" onClose={()=>setWidgetOpen(false)}><WidgetSettings widgetKey={data.widgetKey} onKey={key=>setData(prev=>({...prev,widgetKey:key}))}/></Modal>}
   {restOpen&&<Modal title="Mode repos" onClose={()=>setRestOpen(false)}><RestMode periods={data.restPeriods||[]} today={todayKey()} newId={id} onChange={next=>setData(prev=>({...prev,restPeriods:next}))}/></Modal>}
   {notificationsOpen&&session?.user?.id&&<Modal title="Notifications" onClose={()=>setNotificationsOpen(false)}><NotificationSettings userId={session.user.id} prefs={data.notifications} onChange={next=>setData(prev=>({...prev,notifications:next}))}/></Modal>}
