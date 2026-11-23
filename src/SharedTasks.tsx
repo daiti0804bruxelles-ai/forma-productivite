@@ -20,7 +20,7 @@ export function SharedTaskRows({ shared, today, mode, onEdit }: { shared: Shared
     onPostpone={!t.done_at && t.due_date <= today ? () => { void shared.moveTask(t, plusDays(today, 1)) } : undefined} onEdit={() => onEdit(t)} onDelete={() => { void shared.removeTask(t) }}>
     <div className="check-row">
       <button type="button" className="round-check" aria-pressed={Boolean(t.done_at)} aria-label={`${t.done_at ? 'Rouvrir' : 'Terminer'} ${t.title}`} onClick={() => { void shared.toggleTask(t) }}>{t.done_at && <Check size={15} strokeWidth={3} />}</button>
-      <div className="row-copy row-open" role="button" tabIndex={0} onClick={() => onEdit(t)} onKeyDown={e => { if (e.key === 'Enter') onEdit(t) }}><span className={t.done_at ? 'is-done' : ''}>{t.title}</span><small className={!t.done_at && t.due_date < today ? 'is-late' : ''}><Users size={12} className="together-icon" aria-hidden="true" /> {meta(t)}</small></div>
+      <div className="row-copy row-open" role="button" tabIndex={0} onClick={() => onEdit(t)} onKeyDown={e => { if (e.key === 'Enter') onEdit(t) }}><span className={t.done_at ? 'is-done' : ''}>{t.title}</span><small className={`together-meta ${!t.done_at && t.due_date < today ? 'is-late' : ''}`}><Users size={12} className="together-icon" aria-hidden="true" />{meta(t)}</small></div>
     </div>
   </SwipeRow>)}</>
 }

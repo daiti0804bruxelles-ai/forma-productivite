@@ -7,6 +7,7 @@ import GoalsPage from './GoalsPage'
 import { useSharedGoals } from './useSharedGoals'
 import { SharedTaskRows } from './SharedTasks'
 import TogetherOption from './TogetherOption'
+import CheckOption from './CheckOption'
 import type { SharedTask } from './useSharedGoals'
 import { applySharedTasks } from './sharedTaskRules'
 import SkillSelector from './SkillSelector'
@@ -50,8 +51,11 @@ type Habit = { id:string; title:string; period:Period; category:string; skillIds
 type Subtask = { id:string; title:string; done:boolean }
 type Task = { id:string; goalStep?:{goalId:string;stepId:string}; subtasks?:Subtask[]; title:string; category:string; date:string; done:boolean; recurring?:boolean; skillIds?:SkillId[]; dueDate?:string; createdOn?:string; difficulty?:Difficulty }
 type Event = { id:string; title:string; date:string; time:string; endTime?:string; category:string; repeatDays?:number[]; skillIds?:SkillId[]; difficulty?:Difficulty; createdOn?:string }
-type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string; notifications?:NotificationPrefs; focusGoalId?:string; restPeriods?:RestPeriod[]; excused?:Excused; memos?:Memo[]; widgetKey?:string } & GameState
+type AppData = { habits:Habit[]; tasks:Task[]; taskOrder?:string[]; events:Event[]; goals?:Goal[]; completedHabits:Record<string,string[]>; completedEvents?:Record<string,string[]>; activityDays?:string[]; xpLedger?:XpLedger; characterAppearance?:CharacterAppearance; avatarPath?:string; avatarUpdatedAt?:string; lastPenaltyCheckDate?:string; appearance?:Appearance; xpVersion?:number; legacyXpLedger?:XpLedger; timeZone?:string; notifications?:NotificationPrefs; focusGoalId?:string; restPeriods?:RestPeriod[]; excused?:Excused; memos?:Memo[]; widgetKey?:string; todayHidden?:TodaySection[] } & GameState
 const todayKey = () => currentDayKey()
+/** Blocs de la page Aujourd'hui que l'on peut masquer (l'alerte « N'oublie pas » reste toujours visible). */
+type TodaySection='streak'|'progress'|'focus'|'events'|'tasks'|'habits'
+const TODAY_SECTIONS:{id:TodaySection;label:string;hint?:string}[]=[{id:'streak',label:'Série'},{id:'progress',label:'Progression du jour',hint:'Ne compte que les blocs affichés'},{id:'focus',label:'Objectif mis en avant'},{id:'events',label:'Programme',hint:'Activités du calendrier'},{id:'tasks',label:'Tâches'},{id:'habits',label:'Habitudes'}]
 const weekdayOptions=[{day:1,label:'Lun'},{day:2,label:'Mar'},{day:3,label:'Mer'},{day:4,label:'Jeu'},{day:5,label:'Ven'},{day:6,label:'Sam'},{day:0,label:'Dim'}]
 
 function rollOverTasks(value:AppData,today=todayKey()):AppData {return advanceDay(value,today) as AppData}
@@ -99,6 +103,7 @@ function isAppData(value:unknown):value is AppData{
  if(d.frozenDays!==undefined&&(!Array.isArray(d.frozenDays)||d.frozenDays.length>5000||!d.frozenDays.every(validDate)))return false
  if(d.restPeriods!==undefined&&(!Array.isArray(d.restPeriods)||d.restPeriods.length>500||!d.restPeriods.every(isRestPeriod)))return false
  if(d.excused!==undefined&&!isExcused(d.excused))return false
+ if(d.todayHidden!==undefined&&(!Array.isArray(d.todayHidden)||!d.todayHidden.every(x=>TODAY_SECTIONS.some(s=>s.id===x))))return false
  if(d.widgetKey!==undefined&&(typeof d.widgetKey!=='string'||!/^[a-f0-9]{40}$/.test(d.widgetKey)))return false
  if(d.memos!==undefined&&(!Array.isArray(d.memos)||d.memos.length>2000||!d.memos.every(isMemo)))return false
  if(d.goldBoostUntil!==undefined&&(typeof d.goldBoostUntil!=='string'||Number.isNaN(Date.parse(d.goldBoostUntil))))return false
@@ -386,6 +391,9 @@ useEffect(() => {
  const [notificationsOpen,setNotificationsOpen]=useState(false)
  const [restOpen,setRestOpen]=useState(false)
  const [widgetOpen,setWidgetOpen]=useState(false)
+ const [todayCustomOpen,setTodayCustomOpen]=useState(false)
+ const shows=(sec:TodaySection)=>!(data.todayHidden||[]).includes(sec)
+ const toggleSection=(sec:TodaySection)=>setData(prev=>{const h=prev.todayHidden||[];return {...prev,todayHidden:h.includes(sec)?h.filter(x=>x!==sec):[...h,sec]}})
  // Objectifs à deux : chacun reçoit sa récompense (or + XP) quand l'objectif commun est atteint, une fois par objectif (ou par mois atteint).
  const shared=useSharedGoals(session?.user?.id,page==='goals'||page==='dashboard'||page==='tasks')
  useEffect(()=>{
@@ -502,7 +510,7 @@ useEffect(() => {
  const appearance=dataLoading?cachedAppearance:(data.appearance??cachedAppearance)
  useAppearance(appearance)
  useEffect(()=>{if(!xpFlash)return;const timer=window.setTimeout(()=>setXpFlash(null),1600);return()=>window.clearTimeout(timer)},[xpFlash])
- const anyOverlayOpen=Boolean(shopOpen||notificationsOpen||restOpen||widgetOpen||statsHabitId||modal||pendingDelete||backupOpen||appearanceOpen||timeZoneOpen||quickAdd||mobileMoreOpen)
+ const anyOverlayOpen=Boolean(shopOpen||notificationsOpen||restOpen||widgetOpen||todayCustomOpen||statsHabitId||modal||pendingDelete||backupOpen||appearanceOpen||timeZoneOpen||quickAdd||mobileMoreOpen)
  useEffect(()=>{
   if(anyOverlayOpen)return
   const onKey=(e:KeyboardEvent)=>{
@@ -560,7 +568,7 @@ useEffect(() => {
  const visibleEvents=showDone?todayEvents:todayEvents.filter(ev=>!eventHidden(ev))
  const visibleTasks=showDone?orderedTodayTasks:orderedTodayTasks.filter(t=>!t.done||leaving.includes(t.id))
  const visibleHabits=showDone?sortedHabits:sortedHabits.filter(h=>!completed.includes(h.id)||leaving.includes(h.id))
- const hiddenCount=todayEvents.filter(ev=>ev.skillIds?.length?completedEventsToday.includes(ev.id):eventPast(ev)).length+orderedTodayTasks.filter(t=>t.done).length+sortedHabits.filter(h=>completed.includes(h.id)).length
+ const hiddenCount=(shows('events')?todayEvents.filter(ev=>ev.skillIds?.length?completedEventsToday.includes(ev.id):eventPast(ev)).length:0)+(shows('tasks')?orderedTodayTasks.filter(t=>t.done).length:0)+(shows('habits')?sortedHabits.filter(h=>completed.includes(h.id)).length:0)
  const xpEventsToday=todayEvents.filter(ev=>ev.skillIds?.length)
  // Mode repos / excusé : pas de pénalité, et l'élément ne compte plus dans la progression du jour (sauf s'il est quand même fait).
  const pausedToday=(item:{id:string;skillIds?:readonly string[]})=>isPaused(item,todayKey(),data.restPeriods,data.excused)
@@ -574,8 +582,9 @@ useEffect(() => {
  const counts=<T extends {id:string;skillIds?:readonly string[]}>(list:T[],isDone:(x:T)=>boolean)=>list.filter(x=>isDone(x)||!pausedToday(x))
  const sharedShown=shared.tasks.filter(t=>taskFilter==='À faire'?!t.done_at:Boolean(t.done_at)).length
  const sharedToday=shared.tasks.filter(t=>t.due_date<=todayKey()&&(!t.done_at||new Date(t.done_at).toDateString()===new Date().toDateString()))
- const dayDone=sharedToday.filter(t=>t.done_at).length+doneTasks+habitsDone+xpEventsToday.filter(ev=>completedEventsToday.includes(ev.id)).length
- const dayTotal=sharedToday.length+counts(todaysTasks,t=>t.done).length+counts(todaysHabits,h=>completed.includes(h.id)).length+counts(xpEventsToday,ev=>completedEventsToday.includes(ev.id)).length
+ // La progression du jour ne compte que les blocs affichés sur Aujourd'hui.
+ const dayDone=(shows('tasks')?sharedToday.filter(t=>t.done_at).length+doneTasks:0)+(shows('habits')?habitsDone:0)+(shows('events')?xpEventsToday.filter(ev=>completedEventsToday.includes(ev.id)).length:0)
+ const dayTotal=(shows('tasks')?sharedToday.length+counts(todaysTasks,t=>t.done).length:0)+(shows('habits')?counts(todaysHabits,h=>completed.includes(h.id)).length:0)+(shows('events')?counts(xpEventsToday,ev=>completedEventsToday.includes(ev.id)).length:0)
  const dayProgress=dayTotal?Math.round(dayDone/dayTotal*100):0
  const showFab=page==='dashboard'||page==='habits'||page==='tasks'||page==='calendar'
  const subtaskCount=(t:Task)=>{const list=t.subtasks||[];return list.length?`${list.filter(st=>st.done).length}/${list.length}`:''}
@@ -638,6 +647,7 @@ useEffect(() => {
        <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setNotificationsOpen(true)}}><Bell size={17}/> Notifications</button>
        <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setRestOpen(true)}}><Moon size={17}/> Mode repos</button>
        <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setWidgetOpen(true)}}><Smartphone size={17}/> Widget iPhone</button>
+       <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setTodayCustomOpen(true)}}><Sun size={17}/> Page Aujourd’hui</button>
        <button type="button" role="menuitem" className="menu-item" onClick={()=>{setSettingsOpen(false);setTimeZoneOpen(true)}}><Globe size={17}/> Fuseau horaire</button>
        <button type="button" role="menuitem" className="menu-item" onClick={openBackup}><Download size={17}/> Sauvegarde et restauration</button>
       </div>}
@@ -648,23 +658,23 @@ useEffect(() => {
     {page==='skills'&&<SkillsPage ledger={data.xpLedger}/>}
     {page==='memos'&&<MemosPage memos={data.memos||[]} now={nowStamp} onChange={memos=>setData(prev=>({...prev,memos}))}/>}
 
-    {page==='dashboard'&&<div className="today">
+    {page==='dashboard'&&<div className={`today ${!shows('habits')?'no-habits':''} ${!shows('events')&&!shows('tasks')?'no-left':''}`}>
      <section className="today-head">
       <div><p className="today-date">{frDate(makeDate(todayKey()),{weekday:'long',day:'numeric',month:'long'})}</p><h1>Aujourd’hui</h1></div>
-      <StreakFlame streak={activityStreak} activeToday={activityDays.has(todayKey())}/>
+      {shows('streak')&&<StreakFlame streak={activityStreak} activeToday={activityDays.has(todayKey())}/>}
      </section>
      <DueMemos memos={data.memos||[]} now={nowStamp} onChange={updateMemo}/>
-     {(dayTotal>0||restsToday.length>0)&&<div className="day-progress">
+     {shows('progress')&&(dayTotal>0||restsToday.length>0)&&<div className="day-progress">
       {dayTotal>0&&<div className="day-progress-label"><span>{dayDone} sur {dayTotal} terminée{dayDone!==1?'s':''}</span><span>{dayProgress} %</span></div>}{(boostActive(data)||goldBoostActive(data)||data.protectedDays?.includes(todayKey())||restsToday.length>0)&&<div className="game-status">{goldBoostActive(data)&&<span>Or ×2 jusqu’à {new Date(data.goldBoostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{restsToday.length>0&&<button type="button" className="game-chip" onClick={()=>setRestOpen(true)}>Mode repos · {restSkillsLabel([...new Set(restsToday.flatMap(r=>r.skillIds))])}</button>}{boostActive(data)&&<span>Boost XP ×2 jusqu’à {new Date(data.boostUntil!).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'})}</span>}{data.protectedDays?.includes(todayKey())&&<span>Journée protégée par un joker</span>}</div>}
       {dayTotal>0&&<div className="bar" role="progressbar" aria-label="Progression du jour" aria-valuemin={0} aria-valuemax={100} aria-valuenow={dayProgress}><div style={{width:`${dayProgress}%`}}/></div>}
      </div>}
-     {focusGoal&&<FocusGoal goal={focusGoal} today={todayKey()} onOpen={()=>go('goals')}/>}
-     <section className="list-section today-events">
+     {shows('focus')&&focusGoal&&<FocusGoal goal={focusGoal} today={todayKey()} onOpen={()=>go('goals')}/>}
+     {shows('events')&&<section className="list-section today-events">
       <div className="section-head"><h2>Programme</h2><button type="button" className="text-action" onClick={()=>go('calendar')}>Calendrier <ArrowRight size={15}/></button></div>
       <div className="list-card">{visibleEvents.length?visibleEvents.map(ev=>{const xp=Boolean(ev.skillIds?.length);const done=completedEventsToday.includes(ev.id);const paused=xp&&!done&&pausedToday(ev);const row=<div className={`event-row ${!xp&&eventPast(ev)?'is-past':''} ${paused?'is-paused':''} ${leaving.includes(ev.id)&&!showDone&&!xp?'is-leaving':''}`}>{xp&&<RoundCheck done={done} label={`${done?'Annuler':'Valider'} ${ev.title}`} onToggle={()=>checkEvent(ev)}/>}<span className="event-time">{ev.time}</span><span className={`event-stripe ${categoryClass[ev.category]||'lavender'}`}/><div className="row-copy"><span className={done?'is-done':''}>{ev.title}</span><small>{ev.category}{ev.endTime?` · jusqu’à ${ev.endTime}`:''}{xp&&!paused?` · +${xpForDifficulty(ev.difficulty)*(ev.skillIds?.length||0)} XP`:''}{xp&&pausedTag(ev,done)}</small></div>{xpFlash?.id===ev.id&&<span className="xp-flash" aria-hidden="true">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}</div>
        return xp?<SwipeRow key={ev.id} className={leaving.includes(ev.id)&&!showDone?'is-leaving':''} done={done} completeLabel="Valider" onComplete={()=>checkEvent(ev)} onExcuse={!done&&(excusedToday(ev.id)||!pausedToday(ev))?()=>toggleExcuse(ev.id):undefined} excused={excusedToday(ev.id)}>{row}</SwipeRow>:<div key={ev.id}>{row}</div>}):<Empty message={todayEvents.length?'Plus rien de prévu aujourd’hui.':'Rien de prévu aujourd’hui.'}/>}</div>
-     </section>
-     <section className="list-section today-tasks">
+     </section>}
+     {shows('tasks')&&<section className="list-section today-tasks">
       <div className="section-head"><h2>Tâches</h2><button type="button" className="text-action" onClick={()=>go('tasks')}>Tout voir <ArrowRight size={15}/></button></div>
       <div className="list-card">{visibleTasks.length||sharedToday.length?<>{visibleTasks.map(t=><SwipeRow key={t.id} className={`${leaving.includes(t.id)&&!showDone?'is-leaving':''} ${!t.done&&pausedToday(t)?'is-paused':''}`} done={t.done} onComplete={()=>checkTask(t)} onPostpone={!t.recurring&&!t.done?()=>postponeTask(t.id):undefined} onExcuse={t.recurring&&!t.done&&(excusedToday(t.id)||!pausedToday(t))?()=>toggleExcuse(t.id):undefined} excused={excusedToday(t.id)} onEdit={!t.done?()=>openEdit('task',t):undefined} onDelete={()=>deleteItem('task',t.id)}>
        <div className="check-row">
@@ -673,8 +683,8 @@ useEffect(() => {
         {xpFlash?.id===t.id&&<span className="xp-flash">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}
        </div>
       </SwipeRow>)}<SharedTaskRows shared={shared} today={todayKey()} mode="today" onEdit={openEditShared}/></>:<Empty message={orderedTodayTasks.length?'Toutes tes tâches du jour sont faites.':'Aucune tâche pour aujourd’hui.'}/>}</div>
-     </section>
-     <section className="list-section today-habits">
+     </section>}
+     {shows('habits')&&<section className="list-section today-habits">
       <div className="section-head"><h2>Habitudes</h2><button type="button" className="text-action" onClick={()=>go('habits')}>Gérer <ArrowRight size={15}/></button></div>
       <div className="list-card">{visibleHabits.length?visibleHabits.map(h=>{const done=completed.includes(h.id);return <SwipeRow key={h.id} className={`${leaving.includes(h.id)&&!showDone?'is-leaving':''} ${!done&&pausedToday(h)?'is-paused':''}`} done={done} completeLabel="Valider" onComplete={()=>checkHabit(h)} onExcuse={!done&&(excusedToday(h.id)||!pausedToday(h))?()=>toggleExcuse(h.id):undefined} excused={excusedToday(h.id)}>
        <div className="check-row">
@@ -683,7 +693,8 @@ useEffect(() => {
         {xpFlash?.id===h.id&&<span className="xp-flash">+{xpFlash.amount} XP{xpFlash.gold?` · +${xpFlash.gold} or`:''}</span>}
        </div>
       </SwipeRow>}):<Empty message={sortedHabits.length?'Toutes tes habitudes du jour sont faites.':'Aucune habitude pour le moment.'}/>}</div>
-     </section>
+     </section>}
+     <button type="button" className="text-action today-customize" onClick={()=>setTodayCustomOpen(true)}>Personnaliser la page</button>
      {(hiddenCount>0||showDone)&&<button type="button" className="text-action show-done" aria-pressed={showDone} onClick={()=>setShowDone(v=>!v)}>{showDone?'Masquer les éléments terminés':`Afficher les éléments terminés (${hiddenCount})`}</button>}
     </div>}
 
@@ -787,6 +798,10 @@ useEffect(() => {
 
   {quickAdd&&<QuickAdd canShare={Boolean(shared.space)} initialType={quickAdd} today={todayKey()} tomorrow={tomorrowKey} categories={categories} onClose={()=>setQuickAdd(null)} onSubmit={handleQuickAdd} onMoreOptions={quickAddMore}/>}
   {statsHabitId&&(()=>{const h=data.habits.find(x=>x.id===statsHabitId);return h?<Modal title={h.title} onClose={()=>setStatsHabitId(null)}><HabitStatsView habit={h} completed={data.completedHabits} today={todayKey()} ledger={data.xpLedger}/><div className="form-actions"><button type="button" className="secondary-btn" onClick={()=>{setStatsHabitId(null);openEdit('habit',h)}}><Pencil size={16}/> Modifier</button></div></Modal>:null})()}
+  {todayCustomOpen&&<Modal title="Page Aujourd’hui" onClose={()=>setTodayCustomOpen(false)}><div className="today-custom">
+   <p className="settings-hint">Coche ce que tu veux voir. L’alerte « N’oublie pas » reste toujours affichée.</p>
+   {TODAY_SECTIONS.map(sec=><CheckOption key={sec.id} checked={shows(sec.id)} hint={sec.hint} onChange={()=>toggleSection(sec.id)}>{sec.label}</CheckOption>)}
+  </div></Modal>}
   {widgetOpen&&<Modal title="Widget iPhone" onClose={()=>setWidgetOpen(false)}><WidgetSettings widgetKey={data.widgetKey} onKey={key=>setData(prev=>({...prev,widgetKey:key}))}/></Modal>}
   {restOpen&&<Modal title="Mode repos" onClose={()=>setRestOpen(false)}><RestMode periods={data.restPeriods||[]} today={todayKey()} newId={id} onChange={next=>setData(prev=>({...prev,restPeriods:next}))}/></Modal>}
   {notificationsOpen&&session?.user?.id&&<Modal title="Notifications" onClose={()=>setNotificationsOpen(false)}><NotificationSettings userId={session.user.id} prefs={data.notifications} onChange={next=>setData(prev=>({...prev,notifications:next}))}/></Modal>}
