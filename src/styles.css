@@ -477,6 +477,8 @@ html[data-sorting] .fab { opacity: 0; pointer-events: none; }
   .today > * { grid-column: 1 / -1; }
   .today-events, .today-tasks { grid-column: 1; }
   .today-habits { grid-column: 2; grid-row: span 2; }
+  /* Blocs masqués : ce qui reste prend toute la largeur */
+  .today.no-habits .today-events, .today.no-habits .today-tasks, .today.no-left .today-habits { grid-column: 1 / -1; }
   .today .memo-due { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); margin-bottom: 0; }
   .today .show-done { justify-self: start; }
   /* Objectifs en grille */
@@ -835,7 +837,8 @@ button.game-chip { border: 0; padding: 4px 10px; border-radius: 999px; backgroun
 .shop-result { margin: -4px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-ink); font-size: .85rem; }
 
 /* Tâches faites ensemble : mention discrète */
-.together-icon { vertical-align: -1px; }
+.together-meta { display: block; }
+.together-icon { display: inline-block; vertical-align: -2px; margin-right: 4px; }
 small.is-late { color: var(--danger); }
 
 .together-option { display: inline-flex; align-items: center; gap: 9px; justify-self: start; width: fit-content; padding: 6px 2px; border: 0; background: transparent; color: var(--text-2); font: inherit; font-size: .92rem; font-weight: 500; transition: color .15s ease; }
@@ -844,3 +847,10 @@ small.is-late { color: var(--danger); }
 .together-option.is-on .together-box { background: var(--fill); border-color: var(--fill-border); }
 .together-option.is-on svg:not(.together-box svg) { color: var(--accent); }
 .row-open { cursor: pointer; }
+
+/* Page Aujourd'hui personnalisable */
+.today-custom { display: grid; gap: 4px; }
+.check-option { width: 100%; padding: 10px 2px; }
+.check-option-copy { display: grid; gap: 1px; text-align: left; }
+.check-option-copy small { color: var(--text-2); font-size: .76rem; font-weight: 400; }
+.today-customize { justify-self: center; color: var(--text-2); font-size: .82rem; }
